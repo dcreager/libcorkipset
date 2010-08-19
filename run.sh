@@ -41,4 +41,6 @@ JOINED=$(echo $SRC_DIRS | perl -ne 'print join(":", split)')
 # Run the desired program, and pass on any command-line arguments
 # as-is.
 
-LD_LIBRARY_PATH="$JOINED:$LD_LIBRARY_PATH" "$@"
+LD_LIBRARY_PATH="$JOINED:$LD_LIBRARY_PATH" \
+DYLD_LIBRARY_PATH="$JOINED:$DYLD_LIBRARY_PATH" \
+  "$@"
