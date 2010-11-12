@@ -12,9 +12,69 @@
 
 #include <check.h>
 #include <glib.h>
-#include <gio/gio.h>
+#include <glib/gstdio.h>
 
 #include <ipset/bdd/nodes.h>
+
+
+/*-----------------------------------------------------------------------
+ * Temporary file helper
+ */
+
+#define TEMP_FILE_TEMPLATE "/tmp/bdd-XXXXXX"
+
+typedef struct _GTempFile
+{
+    gchar  *filename;
+    FILE  *stream;
+    GMappedFile  *mapped;
+} GTempFile;
+
+
+static GTempFile *
+g_temp_file_new(const gchar *template)
+{
+    GTempFile  *temp_file = g_slice_new(GTempFile);
+    temp_file->filename = g_strdup(template);
+    temp_file->stream = NULL;
+    temp_file->mapped = NULL;
+    return temp_file;
+}
+
+
+static void
+g_temp_file_free(GTempFile *temp_file)
+{
+    g_unlink(temp_file->filename);
+    g_free(temp_file->filename);
+
+    if (temp_file->stream != NULL)
+    {
+        fclose(temp_file->stream);
+    }
+
+    if (temp_file->mapped != NULL)
+    {
+        g_mapped_file_free(temp_file->mapped);
+    }
+}
+
+
+static void
+g_temp_file_open_stream(GTempFile *temp_file)
+{
+    int  fd = g_mkstemp(temp_file->filename);
+    temp_file->stream = fdopen(fd, "rb+");
+}
+
+
+static void
+g_temp_file_open_mapped(GTempFile *temp_file)
+{
+    fclose(temp_file->stream);
+    temp_file->mapped =
+        g_mapped_file_new(temp_file->filename, TRUE, NULL);
+}
 
 
 /*-----------------------------------------------------------------------
@@ -796,12 +856,11 @@ START_TEST(test_bdd_save_1)
      * Serialize the BDD into a string.
      */
 
-    GOutputStream  *stream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mstream =
-        G_MEMORY_OUTPUT_STREAM(stream);
+    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
+    g_temp_file_open_stream(temp_file);
 
-    ipset_node_cache_save(stream, cache, node, NULL);
+    fail_unless(ipset_node_cache_save(temp_file->stream, cache, node, NULL),
+                "Cannot serialize BDD");
 
     const char  *raw_expected =
         "IP set"                             // magic number
@@ -812,8 +871,9 @@ START_TEST(test_bdd_save_1)
         ;
     const size_t  expected_length = 24;
 
-    gpointer  buf = g_memory_output_stream_get_data(mstream);
-    gsize  len = g_memory_output_stream_get_data_size(mstream);
+    g_temp_file_open_mapped(temp_file);
+    gpointer  buf = g_mapped_file_get_contents(temp_file->mapped);
+    gsize  len = g_mapped_file_get_length(temp_file->mapped);
 
     fail_unless(expected_length == len,
                 "Serialized BDD has wrong length "
@@ -823,7 +883,7 @@ START_TEST(test_bdd_save_1)
     fail_unless(memcmp(raw_expected, buf, expected_length) == 0,
                 "Serialized BDD has incorrect data");
 
-    g_object_unref(stream);
+    g_temp_file_free(temp_file);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -863,12 +923,10 @@ START_TEST(test_bdd_save_2)
      * Serialize the BDD into a string.
      */
 
-    GOutputStream  *stream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mstream =
-        G_MEMORY_OUTPUT_STREAM(stream);
+    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
+    g_temp_file_open_stream(temp_file);
 
-    fail_unless(ipset_node_cache_save(stream, cache, node, NULL),
+    fail_unless(ipset_node_cache_save(temp_file->stream, cache, node, NULL),
                 "Cannot serialize BDD");
 
     const char  *raw_expected =
@@ -891,8 +949,9 @@ START_TEST(test_bdd_save_2)
         ;
     const size_t  expected_length = 47;
 
-    gpointer  buf = g_memory_output_stream_get_data(mstream);
-    gsize  len = g_memory_output_stream_get_data_size(mstream);
+    g_temp_file_open_mapped(temp_file);
+    gpointer  buf = g_mapped_file_get_contents(temp_file->mapped);
+    gsize  len = g_mapped_file_get_length(temp_file->mapped);
 
     fail_unless(expected_length == len,
                 "Serialized BDD has wrong length "
@@ -902,44 +961,7 @@ START_TEST(test_bdd_save_2)
     fail_unless(memcmp(raw_expected, buf, expected_length) == 0,
                 "Serialized BDD has incorrect data");
 
-    g_object_unref(stream);
-    ipset_node_cache_free(cache);
-}
-END_TEST
-
-
-START_TEST(test_bdd_bad_save_1)
-{
-    ipset_node_cache_t  *cache = ipset_node_cache_new();
-
-    /*
-     * Create a BDD representing
-     *   f(x) = TRUE
-     */
-
-    ipset_node_id_t  node =
-        ipset_node_cache_terminal(cache, TRUE);
-
-    /*
-     * Serialize the BDD into a buffer that's too small, and verify
-     * that we get an error.
-     */
-
-    const gsize  buf_len = 16;
-    guint8  buf[16];
-
-    GOutputStream  *stream =
-        g_memory_output_stream_new(buf, buf_len, NULL, NULL);
-
-    GError  *error = NULL;
-    ipset_node_cache_save(stream, cache, node, &error);
-
-    fail_unless(error != NULL,
-                "Should get error when serializing "
-                "into a small buffer");
-
-    g_error_free(error);
-    g_object_unref(stream);
+    g_temp_file_free(temp_file);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -970,13 +992,15 @@ START_TEST(test_bdd_load_1)
         ;
     const size_t  raw_length = 24;
 
-    GInputStream  *stream =
-        g_memory_input_stream_new_from_data
-        (raw, raw_length, NULL);
+    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
+    g_temp_file_open_stream(temp_file);
+    fwrite(raw, raw_length, 1, temp_file->stream);
+    fflush(temp_file->stream);
+    fseek(temp_file->stream, 0, SEEK_SET);
 
     GError  *error = NULL;
     ipset_node_id_t  read =
-        ipset_node_cache_load(stream, cache, &error);
+        ipset_node_cache_load(temp_file->stream, cache, &error);
 
     fail_unless(error == NULL,
                 "Error reading BDD from stream");
@@ -984,7 +1008,7 @@ START_TEST(test_bdd_load_1)
     fail_unless(read == node,
                 "BDD from stream doesn't match expected");
 
-    g_object_unref(stream);
+    g_temp_file_free(temp_file);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -1044,13 +1068,15 @@ START_TEST(test_bdd_load_2)
         ;
     const size_t  raw_length = 47;
 
-    GInputStream  *stream =
-        g_memory_input_stream_new_from_data
-        (raw, raw_length, NULL);
+    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
+    g_temp_file_open_stream(temp_file);
+    fwrite(raw, raw_length, 1, temp_file->stream);
+    fflush(temp_file->stream);
+    fseek(temp_file->stream, 0, SEEK_SET);
 
     GError  *error = NULL;
     ipset_node_id_t  read =
-        ipset_node_cache_load(stream, cache, &error);
+        ipset_node_cache_load(temp_file->stream, cache, &error);
 
     fail_unless(error == NULL,
                 "Error reading BDD from stream");
@@ -1058,7 +1084,7 @@ START_TEST(test_bdd_load_2)
     fail_unless(read == node,
                 "BDD from stream doesn't match expected");
 
-    g_object_unref(stream);
+    g_temp_file_free(temp_file);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -1241,7 +1267,6 @@ test_suite()
     TCase  *tc_serialization = tcase_create("serialization");
     tcase_add_test(tc_serialization, test_bdd_save_1);
     tcase_add_test(tc_serialization, test_bdd_save_2);
-    tcase_add_test(tc_serialization, test_bdd_bad_save_1);
     tcase_add_test(tc_serialization, test_bdd_load_1);
     tcase_add_test(tc_serialization, test_bdd_load_2);
     suite_add_tcase(s, tc_serialization);
@@ -1251,7 +1276,13 @@ test_suite()
     tcase_add_test(tc_iteration, test_bdd_iterate_2);
     suite_add_tcase(s, tc_iteration);
 
-    return s;
+    Suite  *s1 = suite_create("bdd");
+    TCase  *tc1 = tcase_create("bits");
+    tcase_add_test(tc1, test_bdd_save_1);
+    suite_add_tcase(s1, tc1);
+    (void) s;
+
+    return s1;
 }
 
 
@@ -1261,8 +1292,6 @@ main(int argc, const char **argv)
     int  number_failed;
     Suite  *suite = test_suite();
     SRunner  *runner = srunner_create(suite);
-
-    g_type_init();
 
     srunner_run_all(runner, CK_NORMAL);
     number_failed = srunner_ntests_failed(runner);

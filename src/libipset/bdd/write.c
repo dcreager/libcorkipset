@@ -8,8 +8,11 @@
  * ----------------------------------------------------------------------
  */
 
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <glib.h>
-#include <gio/gio.h>
 
 #include <ipset/bdd/nodes.h>
 #include <ipset/logging.h>
@@ -120,7 +123,7 @@ struct save_data
      * The output stream to save the data to.
      */
 
-    GDataOutputStream  *dstream;
+    FILE  *stream;
 
     /**
      * The cache of serialized IDs for any nonterminals that we've
@@ -356,6 +359,125 @@ save_bdd(save_data_t *save_data,
 
 
 /*-----------------------------------------------------------------------
+ * Helper functions
+ */
+
+/**
+ * Creates a GError based on the contents of errno.
+ */
+
+static void
+create_errno_error(FILE *stream, GError **err)
+{
+    if (ferror(stream))
+    {
+        g_set_error(err,
+                    G_FILE_ERROR,
+                    g_file_error_from_errno(errno),
+                    "%s",
+                    strerror(errno));
+    }
+
+    else
+    {
+        g_set_error(err,
+                    G_FILE_ERROR,
+                    G_FILE_ERROR_FAILED,
+                    "Unknown I/O error");
+    }
+}
+
+/**
+ * Write a NUL-terminated string to a stream.  If we can't write the
+ * string for some reason, return an error.
+ */
+
+static void
+write_string(FILE *stream, const gchar *str, GError **err)
+{
+    gsize  len = strlen(str);
+    if (fwrite(str, len, 1, stream) != 1)
+    {
+        GError  *suberr = NULL;
+        create_errno_error(stream, &suberr);
+        g_propagate_error(err, suberr);
+    }
+}
+
+
+/**
+ * Write a big-endian uint8 to a stream.  If we can't write the
+ * integer for some reason, return an error.
+ */
+
+static void
+write_uint8(FILE *stream, guint8 val, GError **err)
+{
+    /* for a byte, we don't need to endian-swap */
+
+    gsize  num_written = fwrite(&val, sizeof(guint8), 1, stream);
+    if (num_written != 1)
+    {
+        create_errno_error(stream, err);
+    }
+}
+
+
+/**
+ * Write a big-endian uint16 to a stream.  If we can't write the
+ * integer for some reason, return an error.
+ */
+
+static void
+write_uint16(FILE *stream, guint16 val, GError **err)
+{
+    val = GUINT16_TO_BE(val);
+
+    gsize  num_written = fwrite(&val, sizeof(guint16), 1, stream);
+    if (num_written != 1)
+    {
+        create_errno_error(stream, err);
+    }
+}
+
+
+/**
+ * Write a big-endian uint32 to a stream.  If we can't write the
+ * integer for some reason, return an error.
+ */
+
+static void
+write_uint32(FILE *stream, guint32 val, GError **err)
+{
+    val = GUINT32_TO_BE(val);
+
+    gsize  num_written = fwrite(&val, sizeof(guint32), 1, stream);
+    if (num_written != 1)
+    {
+        create_errno_error(stream, err);
+    }
+}
+
+
+/**
+ * Write a big-endian uint64 to a stream.  If we can't write the
+ * integer for some reason, return an error.
+ */
+
+static void
+write_uint64(FILE *stream, guint64 val, GError **err)
+{
+    val = GUINT64_TO_BE(val);
+
+    gsize  num_written = fwrite(&val, sizeof(guint64), 1, stream);
+    if (num_written != 1)
+    {
+        create_errno_error(stream, err);
+    }
+}
+
+
+/*-----------------------------------------------------------------------
  * V1 BDD file
  */
 
@@ -370,29 +492,14 @@ write_header_v1(save_data_t *save_data,
                 GError **err)
 {
     gboolean  result = FALSE;
-    gsize bytes_written;
-
-    /*
-     * The data should all be big-endian.
-     */
-
-    g_data_output_stream_set_byte_order
-        (save_data->dstream, G_DATA_STREAM_BYTE_ORDER_BIG_ENDIAN);
 
     /*
      * Output the magic number for an IP set, and the file format
      * version that we're going to write.
      */
 
-    TRY_OR_RETURN(FALSE,
-                  g_output_stream_write_all,
-                  G_OUTPUT_STREAM(save_data->dstream),
-                  MAGIC_NUMBER, MAGIC_NUMBER_LENGTH,
-                  &bytes_written, NULL);
-
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_uint16,
-                  save_data->dstream, 0x0001, NULL);
+    TRY_OR_RETURN(FALSE, write_string, save_data->stream, MAGIC_NUMBER);
+    TRY_OR_RETURN(FALSE, write_uint16, save_data->stream, 0x0001);
 
     /*
      * Determine how many reachable nodes there are, to calculate the
@@ -422,12 +529,8 @@ write_header_v1(save_data_t *save_data,
         set_size += sizeof(guint32);
     }
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_uint64,
-                  save_data->dstream, set_size, NULL);
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_uint32,
-                  save_data->dstream, nonterminal_count, NULL);
+    TRY_OR_RETURN(FALSE, write_uint64, save_data->stream, set_size);
+    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, nonterminal_count);
 
   error:
     /*
@@ -455,9 +558,7 @@ write_footer_v1(save_data_t *save_data,
     {
         ipset_range_t  value = ipset_terminal_value(root);
 
-        TRY_OR_RETURN(FALSE,
-                      g_data_output_stream_put_uint32,
-                      save_data->dstream, value, NULL);
+        TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, value);
     }
 
     return TRUE;
@@ -496,15 +597,9 @@ write_nonterminal_v1(save_data_t *save_data,
 {
     gboolean  result = FALSE;
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_byte,
-                  save_data->dstream, variable, NULL);
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_int32,
-                  save_data->dstream, serialized_low, NULL);
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_int32,
-                  save_data->dstream, serialized_high, NULL);
+    TRY_OR_RETURN(FALSE, write_uint8, save_data->stream, variable);
+    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, serialized_low);
+    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, serialized_high);
 
     return TRUE;
 
@@ -518,7 +613,7 @@ write_nonterminal_v1(save_data_t *save_data,
 
 
 gboolean
-ipset_node_cache_save(GOutputStream *stream,
+ipset_node_cache_save(FILE *stream,
                       ipset_node_cache_t *cache,
                       ipset_node_id_t node,
                       GError **err)
@@ -528,7 +623,7 @@ ipset_node_cache_save(GOutputStream *stream,
     gboolean  result = FALSE;
 
     save_data_t  save_data = {
-        NULL,                   /* output stream */
+        stream,                 /* output stream */
         NULL,                   /* serialized ID cache */
         0,                      /* next serialized ID */
         write_header_v1,        /* header writer */
@@ -539,12 +634,6 @@ ipset_node_cache_save(GOutputStream *stream,
     };
 
     /*
-     * Create a GDataOutputStream to output the binary data.
-     */
-
-    save_data.dstream = g_data_output_stream_new(stream);
-
-    /*
      * Then use the generic saving functions to output the file.
      */
 
@@ -552,16 +641,12 @@ ipset_node_cache_save(GOutputStream *stream,
                   save_bdd,
                   &save_data, cache, node);
 
-    g_object_unref(save_data.dstream);
     return TRUE;
 
   error:
     /*
-     * If there's an error, clean up the objects that we've created
-     * before returning.
+     * There's no cleanup to do on an error.
      */
-
-    g_object_unref(save_data.dstream);
 
     return result;
 }
@@ -602,10 +687,7 @@ write_header_dot(save_data_t *save_data,
      * Output the opening clause of the GraphViz script.
      */
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_string,
-                  save_data->dstream,
-                  GRAPHVIZ_HEADER, NULL);
+    TRY_OR_RETURN(FALSE, write_string, save_data->stream, GRAPHVIZ_HEADER);
 
   error:
     /*
@@ -628,10 +710,7 @@ write_footer_dot(save_data_t *save_data,
      * Output the closing clause of the GraphViz script.
      */
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_string,
-                  save_data->dstream,
-                  GRAPHVIZ_FOOTER, NULL);
+    TRY_OR_RETURN(FALSE, write_string, save_data->stream, GRAPHVIZ_FOOTER);
 
   error:
     /*
@@ -669,20 +748,17 @@ write_terminal_dot(save_data_t *save_data,
                     terminal_value,
                     terminal_value);
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_string,
-                  save_data->dstream,
-                  str->str, NULL);
+    TRY_OR_RETURN(FALSE, write_string, save_data->stream, str->str);
 
     g_string_free(str, TRUE);
-
     return TRUE;
 
   error:
     /*
-     * There's no cleanup to do on an error.
+     * Clean up the string on error.
      */
 
+    g_string_free(str, TRUE);
     return result;
 }
 
@@ -816,10 +892,7 @@ write_nonterminal_dot(save_data_t *save_data,
      * Output the clauses to the stream.
      */
 
-    TRY_OR_RETURN(FALSE,
-                  g_data_output_stream_put_string,
-                  save_data->dstream,
-                  str->str, NULL);
+    TRY_OR_RETURN(FALSE, write_string, save_data->stream, str->str);
 
     g_string_free(str, TRUE);
 
@@ -827,15 +900,16 @@ write_nonterminal_dot(save_data_t *save_data,
 
   error:
     /*
-     * There's no cleanup to do on an error.
+     * Clean up the string on error.
      */
 
+    g_string_free(str, TRUE);
     return result;
 }
 
 
 gboolean
-ipset_node_cache_save_dot(GOutputStream *stream,
+ipset_node_cache_save_dot(FILE *stream,
                           ipset_node_cache_t *cache,
                           ipset_node_id_t node,
                           GError **err)
@@ -849,7 +923,7 @@ ipset_node_cache_save_dot(GOutputStream *stream,
     };
 
     save_data_t  save_data = {
-        NULL,                   /* output stream */
+        stream,                 /* output stream */
         NULL,                   /* serialized ID cache */
         0,                      /* next serialized ID */
         write_header_dot,       /* header writer */
@@ -860,12 +934,6 @@ ipset_node_cache_save_dot(GOutputStream *stream,
     };
 
     /*
-     * Create a GDataOutputStream to output the binary data.
-     */
-
-    save_data.dstream = g_data_output_stream_new(stream);
-
-    /*
      * Then use the generic saving functions to output the file.
      */
 
@@ -873,16 +941,12 @@ ipset_node_cache_save_dot(GOutputStream *stream,
                   save_bdd,
                   &save_data, cache, node);
 
-    g_object_unref(save_data.dstream);
     return TRUE;
 
   error:
     /*
-     * If there's an error, clean up the objects that we've created
-     * before returning.
+     * There's no cleanup to do on an error.
      */
-
-    g_object_unref(save_data.dstream);
 
     return result;
 }

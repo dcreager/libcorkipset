@@ -10,15 +10,13 @@
 
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include <glib.h>
-#include <gio/gio.h>
-#include <gio/gunixinputstream.h>
-#include <gio/gunixoutputstream.h>
 
 #include <ipset/ipset.h>
 
@@ -57,7 +55,6 @@ ignore_log_message(const gchar *log_domain, GLogLevelFlags log_level,
 int
 main(int argc, char **argv)
 {
-    g_type_init();
     ipset_init_library();
 
     /*
@@ -91,10 +88,11 @@ main(int argc, char **argv)
     ip_set_t  *set = NULL;
 
     {
-        GInputStream  *stream;
+        FILE  *stream;
+        gboolean  close_stream;
 
         /*
-         * Create a raw GInputStream for the file.
+         * Create a FILE object for the file.
          */
 
         if (strcmp(input_filename, "-") == 0)
@@ -102,22 +100,23 @@ main(int argc, char **argv)
             fprintf(stderr, "Opening stdin...\n");
             input_filename = "stdin";
 
-            stream = g_unix_input_stream_new(STDIN_FILENO, FALSE);
-        } else {
+            stream = stdin;
+            close_stream = FALSE;
+        }
+
+        else
+        {
             fprintf(stderr, "Opening file %s...\n", input_filename);
 
-            GFile  *file =
-                g_file_new_for_commandline_arg(input_filename);
-            GFileInputStream  *fstream =
-                g_file_read(file, NULL, &error);
-            stream = G_INPUT_STREAM(fstream);
-
-            if (fstream == NULL)
+            stream = fopen(input_filename, "rb");
+            if (stream == NULL)
             {
                 fprintf(stderr, "Cannot open file %s:\n  %s\n",
-                        input_filename, error->message);
+                        input_filename, strerror(errno));
                 exit(1);
             }
+
+            close_stream = TRUE;
         }
 
         /*
@@ -138,34 +137,33 @@ main(int argc, char **argv)
      * Print out the IP addresses in the set.
      */
 
-    GOutputStream  *ostream;
+    FILE  *ostream;
+    gboolean  close_ostream;
 
     if ((output_filename == NULL) ||
         (strcmp(output_filename, "-") == 0))
     {
         fprintf(stderr, "Writing to stdout...\n");
 
-        ostream = g_unix_output_stream_new(STDOUT_FILENO, FALSE);
+        ostream = stdout;
         output_filename = "stdout";
-    } else {
-        fprintf(stderr, "Writing to file %s...\n", output_filename);
-
-        GFile  *file = g_file_new_for_commandline_arg(output_filename);
-        GFileOutputStream  *fstream =
-            g_file_replace(file, NULL, FALSE, G_FILE_CREATE_NONE,
-                           NULL, &error);
-        ostream = G_OUTPUT_STREAM(fstream);
-
-        if (fstream == NULL)
-        {
-            fprintf(stderr, "Cannot open file %s:\n  %s\n",
-                    output_filename, error->message);
-            exit(1);
-        }
+        close_ostream = FALSE;
     }
 
-    GDataOutputStream  *dstream =
-        g_data_output_stream_new(ostream);
+    else
+    {
+        fprintf(stderr, "Writing to file %s...\n", output_filename);
+
+        ostream = fopen(output_filename, "wb");
+        if (ostream == NULL)
+        {
+            fprintf(stderr, "Cannot open file %s:\n  %s\n",
+                    output_filename, strerror(errno));
+            exit(1);
+        }
+
+        close_ostream = TRUE;
+    }
 
     GString *str = g_string_new(NULL);
 
@@ -185,16 +183,18 @@ main(int argc, char **argv)
                             ipset_ip_to_string(&it->addr),
                             it->netmask);
 
-            if (!g_data_output_stream_put_string
-                (dstream, str->str, NULL, &error))
+            if (fputs(str->str, ostream) != 0)
             {
                 fprintf(stderr, "Cannot write to file %s:\n  %s\n",
-                        output_filename, error->message);
+                        output_filename, strerror(errno));
                 exit(1);
             }
         }
 
-    } else {
+    }
+
+    else
+    {
         /*
          * The user wants individual IP addresses.  Hope they know
          * what they're doing!
@@ -208,11 +208,10 @@ main(int argc, char **argv)
             g_string_printf(str, "%s\n",
                             ipset_ip_to_string(&it->addr));
 
-            if (!g_data_output_stream_put_string
-                (dstream, str->str, NULL, &error))
+            if (fputs(str->str, ostream) != 0)
             {
                 fprintf(stderr, "Cannot write to file %s:\n  %s\n",
-                        output_filename, error->message);
+                        output_filename, strerror(errno));
                 exit(1);
             }
         }
@@ -225,8 +224,10 @@ main(int argc, char **argv)
      * Close the output stream for exiting.
      */
 
-    g_object_unref(ostream);
-    g_object_unref(dstream);
+    if (close_ostream)
+    {
+        fclose(ostream);
+    }
 
     return 0;
 }

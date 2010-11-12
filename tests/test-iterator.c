@@ -12,7 +12,6 @@
 
 #include <check.h>
 #include <glib.h>
-#include <gio/gio.h>
 
 #include <ipset/ipset.h>
 
@@ -455,7 +454,6 @@ main(int argc, const char **argv)
     Suite  *suite = ipset_suite();
     SRunner  *runner = srunner_create(suite);
 
-    g_type_init();
     ipset_init_library();
 
     srunner_run_all(runner, CK_NORMAL);

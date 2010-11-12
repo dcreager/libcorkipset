@@ -12,7 +12,6 @@
 #include <stdio.h>
 
 #include <glib.h>
-#include <gio/gio.h>
 
 #include <ipset/bdd/nodes.h>
 #include <ipset/ipset.h>
@@ -20,7 +19,7 @@
 
 
 gboolean
-ipset_save(GOutputStream *stream,
+ipset_save(FILE *stream,
            ip_set_t *set,
            GError **err)
 {
@@ -30,7 +29,7 @@ ipset_save(GOutputStream *stream,
 
 
 gboolean
-ipset_save_dot(GOutputStream *stream,
+ipset_save_dot(FILE *stream,
                ip_set_t *set,
                GError **err)
 {
@@ -40,7 +39,7 @@ ipset_save_dot(GOutputStream *stream,
 
 
 ip_set_t *
-ipset_load(GInputStream *stream,
+ipset_load(FILE *stream,
            GError **err)
 {
     ip_set_t  *set;

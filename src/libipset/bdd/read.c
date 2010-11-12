@@ -8,10 +8,11 @@
  * ----------------------------------------------------------------------
  */
 
+#include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <glib.h>
-#include <gio/gio.h>
 
 #include <ipset/bdd/nodes.h>
 #include <ipset/logging.h>
@@ -57,6 +58,113 @@ typedef gint  serialized_id_t;
 
 
 /**
+ * Creates a GError based on the contents of errno.
+ */
+
+static void
+create_errno_error(FILE *stream, GError **err)
+{
+    if (ferror(stream))
+    {
+        g_set_error(err,
+                    G_FILE_ERROR,
+                    g_file_error_from_errno(errno),
+                    "%s",
+                    strerror(errno));
+    }
+
+    else
+    {
+        g_set_error(err,
+                    G_FILE_ERROR,
+                    G_FILE_ERROR_FAILED,
+                    "Unknown I/O error");
+    }
+}
+
+
+/**
+ * Read in a big-endian uint8 from a stream.  If we can't read the
+ * integer for some reason, return an error.
+ */
+
+static guint8
+read_uint8(FILE *stream, GError **err)
+{
+    guint8  dest;
+    gsize  num_read = fread(&dest, sizeof(guint8), 1, stream);
+    if (num_read != 1)
+    {
+        create_errno_error(stream, err);
+        return 0;
+    }
+
+    /* for a byte, we don't need to endian-swap */
+    return dest;
+}
+
+
+/**
+ * Read in a big-endian uint16 from a stream.  If we can't read the
+ * integer for some reason, return an error.
+ */
+
+static guint16
+read_uint16(FILE *stream, GError **err)
+{
+    guint16  dest;
+    gsize  num_read = fread(&dest, sizeof(guint16), 1, stream);
+    if (num_read != 1)
+    {
+        create_errno_error(stream, err);
+        return FALSE;
+    }
+
+    return GUINT16_FROM_BE(dest);
+}
+
+
+/**
+ * Read in a big-endian uint32 from a stream.  If we can't read the
+ * integer for some reason, return an error.
+ */
+
+static guint32
+read_uint32(FILE *stream, GError **err)
+{
+    guint32  dest;
+    gsize  num_read = fread(&dest, sizeof(guint32), 1, stream);
+    if (num_read != 1)
+    {
+        create_errno_error(stream, err);
+        return FALSE;
+    }
+
+    return GUINT32_FROM_BE(dest);
+}
+
+
+/**
+ * Read in a big-endian uint64 from a stream.  If we can't read the
+ * integer for some reason, return an error.
+ */
+
+static guint64
+read_uint64(FILE *stream, GError **err)
+{
+    guint64  dest;
+    gsize  num_read = fread(&dest, sizeof(guint64), 1, stream);
+    if (num_read != 1)
+    {
+        create_errno_error(stream, err);
+        return FALSE;
+    }
+
+    return GUINT64_FROM_BE(dest);
+}
+
+
+/**
  * A helper function that verifies that we've read exactly as many
  * bytes as we should, returning an error otherwise.
  */
@@ -97,7 +205,7 @@ verify_cap(gsize bytes_read, gsize cap, GError **err)
  */
 
 static ipset_node_id_t
-load_v1(GDataInputStream *dstream,
+load_v1(FILE *stream,
         ipset_node_cache_t *cache,
         GError **err)
 {
@@ -113,9 +221,7 @@ load_v1(GDataInputStream *dstream,
 
     guint64  length;
     g_debug("Reading encoded length");
-    TRY_OR_RETURN(0,
-                  length = g_data_input_stream_read_uint64,
-                  dstream, NULL);
+    TRY_OR_RETURN(0, length = read_uint64, stream);
 
     /*
      * The length includes the magic number, version number, and the
@@ -137,9 +243,7 @@ load_v1(GDataInputStream *dstream,
 
     guint32  nonterminal_count;
     g_debug("Reading number of nonterminals");
-    TRY_OR_RETURN(0,
-                  nonterminal_count = g_data_input_stream_read_uint32,
-                  dstream, NULL);
+    TRY_OR_RETURN(0, nonterminal_count = read_uint32, stream);
     bytes_read += sizeof(guint32);
 
     /*
@@ -151,18 +255,14 @@ load_v1(GDataInputStream *dstream,
     {
         guint32  value;
         g_debug("Reading single terminal value");
-        TRY_OR_RETURN(0,
-                      value = g_data_input_stream_read_uint32,
-                      dstream, NULL);
+        TRY_OR_RETURN(0, value = read_uint32, stream);
         bytes_read += sizeof(guint32);
 
         /*
          * We should have reached the end of the encoded set.
          */
 
-        TRY_OR_RETURN(0,
-                      verify_cap,
-                      bytes_read, cap);
+        TRY_OR_RETURN(0, verify_cap, bytes_read, cap);
 
         /*
          * Create a terminal node for this value and return it.
@@ -191,21 +291,15 @@ load_v1(GDataInputStream *dstream,
          */
 
         guint8  variable;
-        TRY_OR_RETURN(0,
-                      variable = g_data_input_stream_read_byte,
-                      dstream, NULL);
+        TRY_OR_RETURN(0, variable = read_uint8, stream);
         bytes_read += sizeof(guint8);
 
         gint32  low;
-        TRY_OR_RETURN(0,
-                      low = g_data_input_stream_read_int32,
-                      dstream, NULL);
+        TRY_OR_RETURN(0, low = read_uint32, stream);
         bytes_read += sizeof(gint32);
 
         gint32  high;
-        TRY_OR_RETURN(0,
-                      high = g_data_input_stream_read_int32,
-                      dstream, NULL);
+        TRY_OR_RETURN(0, high = read_uint32, stream);
         bytes_read += sizeof(gint32);
 
         g_d_debug("Read serialized node %d = (%d,"
@@ -311,7 +405,7 @@ load_v1(GDataInputStream *dstream,
 
 
 ipset_node_id_t
-ipset_node_cache_load(GInputStream *stream,
+ipset_node_cache_load(FILE *stream,
                       ipset_node_cache_t *cache,
                       GError **err)
 {
@@ -321,14 +415,6 @@ ipset_node_cache_load(GInputStream *stream,
     gsize bytes_read;
 
     /*
-     * Create a GDataInputStream to read in the binary data.
-     */
-
-    GDataInputStream  *dstream = g_data_input_stream_new(stream);
-    g_data_input_stream_set_byte_order
-        (dstream, G_DATA_STREAM_BYTE_ORDER_BIG_ENDIAN);
-
-    /*
      * First, read in the magic number from the stream to ensure that
      * this is an IP set.
      */
@@ -336,11 +422,13 @@ ipset_node_cache_load(GInputStream *stream,
     guint8  magic[MAGIC_NUMBER_LENGTH];
 
     g_debug("Reading IP set magic number");
-    TRY_OR_RETURN(0,
-                  g_input_stream_read_all,
-                  G_INPUT_STREAM(dstream),
-                  magic, MAGIC_NUMBER_LENGTH,
-                  &bytes_read, NULL);
+    bytes_read = fread(magic, 1, MAGIC_NUMBER_LENGTH, stream);
+
+    if (ferror(stream))
+    {
+        create_errno_error(stream, err);
+        return 0;
+    }
 
     if (bytes_read != MAGIC_NUMBER_LENGTH)
     {
@@ -376,17 +464,14 @@ ipset_node_cache_load(GInputStream *stream,
 
     guint16  version;
     g_debug("Reading IP set version");
-    TRY_OR_RETURN(0,
-                  version = g_data_input_stream_read_uint16,
-                  dstream, NULL);
-
+    TRY_OR_RETURN(0, version = read_uint16, stream);
 
     switch (version)
     {
       case 0x0001:
         TRY_OR_RETURN(0,
                       result = load_v1,
-                      dstream, cache);
+                      stream, cache);
         return result;
 
       default:
@@ -404,12 +489,8 @@ ipset_node_cache_load(GInputStream *stream,
 
   error:
     /*
-     * If there's an error, clean up the objects that we've created
-     * before returning.
+     * There's no cleanup to do on an error.
      */
-
-    if (dstream != NULL)
-        g_object_unref(dstream);
 
     return result;
 }

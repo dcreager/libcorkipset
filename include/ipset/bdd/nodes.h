@@ -15,7 +15,6 @@
 #include <stdio.h>
 
 #include <glib.h>
-#include <gio/gio.h>
 
 
 /*-----------------------------------------------------------------------
@@ -328,7 +327,7 @@ ipset_node_cache_nonterminal(ipset_node_cache_t *cache,
  */
 
 ipset_node_id_t
-ipset_node_cache_load(GInputStream *stream,
+ipset_node_cache_load(FILE *stream,
                       ipset_node_cache_t *cache,
                       GError **err);
 
@@ -339,7 +338,7 @@ ipset_node_cache_load(GInputStream *stream,
  */
 
 gboolean
-ipset_node_cache_save(GOutputStream *stream,
+ipset_node_cache_save(FILE *stream,
                       ipset_node_cache_t *cache,
                       ipset_node_id_t node,
                       GError **err);
@@ -352,7 +351,7 @@ ipset_node_cache_save(GOutputStream *stream,
  */
 
 gboolean
-ipset_node_cache_save_dot(GOutputStream *stream,
+ipset_node_cache_save_dot(FILE *stream,
                           ipset_node_cache_t *cache,
                           ipset_node_id_t node,
                           GError **err);

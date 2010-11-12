@@ -10,15 +10,13 @@
 
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include <glib.h>
-#include <gio/gio.h>
-#include <gio/gunixinputstream.h>
-#include <gio/gunixoutputstream.h>
 
 #include <ipset/ipset.h>
 
@@ -48,7 +46,6 @@ ignore_log_message(const gchar *log_domain, GLogLevelFlags log_level,
 int
 main(int argc, char **argv)
 {
-    g_type_init();
     ipset_init_library();
 
     /*
@@ -98,10 +95,11 @@ main(int argc, char **argv)
     for (i = 1; i < argc; i++)
     {
         const char  *filename = argv[i];
-        GInputStream  *stream;
+        FILE  *stream;
+        gboolean  close_stream;
 
         /*
-         * Create a raw GInputStream for the file.
+         * Create a FILE object for the file.
          */
 
         if (strcmp(filename, "-") == 0)
@@ -109,30 +107,24 @@ main(int argc, char **argv)
             fprintf(stderr, "Opening stdin...\n");
             filename = "stdin";
 
-            stream = g_unix_input_stream_new(STDIN_FILENO, FALSE);
-        } else {
-            fprintf(stderr, "Opening file %s...\n", filename);
-
-            GFile  *file = g_file_new_for_commandline_arg(filename);
-            GFileInputStream  *fstream =
-                g_file_read(file, NULL, &error);
-            stream = G_INPUT_STREAM(fstream);
-
-            if (fstream == NULL)
-            {
-                fprintf(stderr, "Cannot open file %s:\n  %s\n",
-                        filename, error->message);
-                exit(1);
-            }
+            stream = stdin;
+            close_stream = FALSE;
         }
 
-        /*
-         * Wrap the GInputStream in a GDataInputStream so that it's
-         * easy to read individual lines.
-         */
+        else
+        {
+            fprintf(stderr, "Opening file %s...\n", filename);
 
-        GDataInputStream  *distream =
-            g_data_input_stream_new(stream);
+            stream = fopen(filename, "rb");
+            if (stream == NULL)
+            {
+                fprintf(stderr, "Cannot open file %s:\n  %s\n",
+                        filename, strerror(errno));
+                exit(1);
+            }
+
+            close_stream = TRUE;
+        }
 
         /*
          * Read in one IP address per line in the file.
@@ -140,13 +132,11 @@ main(int argc, char **argv)
 
         gsize  ip_count = 0;
 
-        gsize  line_length;
-        gchar  *line;
+#define MAX_LINELENGTH  4096
 
+        gchar  line[MAX_LINELENGTH];
 
-        while ((line = g_data_input_stream_read_line
-                (distream, &line_length, NULL, &error))
-               != NULL)
+        while (fgets(line, MAX_LINELENGTH, stream) != NULL)
         {
             /*
              * Reserve enough space for an IPv6 address.
@@ -188,14 +178,14 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        if (error != NULL)
+        if (ferror(stream))
         {
             /*
              * There was an error reading from the stream.
              */
 
             fprintf(stderr, "Error reading from %s:\n  %s\n",
-                    filename, error->message);
+                    filename, strerror(errno));
             exit(1);
         }
 
@@ -206,8 +196,10 @@ main(int argc, char **argv)
          * Free the streams before opening the next file.
          */
 
-        g_object_unref(distream);
-        g_object_unref(stream);
+        if (close_stream)
+        {
+            fclose(stream);
+        }
     }
 
     fprintf(stderr, "Set uses %" G_GSIZE_FORMAT " bytes of memory.\n",
@@ -217,30 +209,32 @@ main(int argc, char **argv)
      * Serialize the IP set to the desired output file.
      */
 
-    GOutputStream  *ostream;
+    FILE  *ostream;
+    gboolean  close_ostream;
 
     if ((output_filename == NULL) ||
         (strcmp(output_filename, "-") == 0))
     {
         fprintf(stderr, "Writing to stdout...\n");
 
-        ostream = g_unix_output_stream_new(STDOUT_FILENO, FALSE);
+        ostream = stdout;
         output_filename = "stdout";
-    } else {
+        close_ostream = FALSE;
+    }
+
+    else
+    {
         fprintf(stderr, "Writing to file %s...\n", output_filename);
 
-        GFile  *file = g_file_new_for_commandline_arg(output_filename);
-        GFileOutputStream  *fstream =
-            g_file_replace(file, NULL, FALSE, G_FILE_CREATE_NONE,
-                           NULL, &error);
-        ostream = G_OUTPUT_STREAM(fstream);
-
-        if (fstream == NULL)
+        ostream = fopen(output_filename, "wb");
+        if (ostream == NULL)
         {
             fprintf(stderr, "Cannot open file %s:\n  %s\n",
-                    output_filename, error->message);
+                    output_filename, strerror(errno));
             exit(1);
         }
+
+        close_ostream = TRUE;
     }
 
     if (!ipset_save(ostream, &set, &error))
@@ -254,7 +248,10 @@ main(int argc, char **argv)
      * Close the output stream for exiting.
      */
 
-    g_object_unref(ostream);
+    if (close_ostream)
+    {
+        fclose(ostream);
+    }
 
     return 0;
 }
