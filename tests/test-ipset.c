@@ -12,7 +12,7 @@
 
 #include <check.h>
 #include <glib.h>
-#include <gio/gio.h>
+#include <glib/gstdio.h>
 
 #include <ipset/ipset.h>
 
@@ -34,6 +34,80 @@ static ipv6_addr_t  IPV6_ADDR_2 =
 "\xfe\x80\x00\x00\x00\x00\x00\x00\x02\x1e\xc2\xff\xfe\x9f\xe8\xe2";
 static ipv6_addr_t  IPV6_ADDR_3 =
 "\xfe\x80\x00\x01\x00\x00\x00\x00\x02\x1e\xc2\xff\xfe\x9f\xe8\xe1";
+
+
+/*-----------------------------------------------------------------------
+ * Temporary file helper
+ */
+
+#define TEMP_FILE_TEMPLATE "/tmp/bdd-XXXXXX"
+
+typedef struct _GTempFile
+{
+    gchar  *filename;
+    FILE  *stream;
+} GTempFile;
+
+
+static GTempFile *
+g_temp_file_new(const gchar *template)
+{
+    GTempFile  *temp_file = g_slice_new(GTempFile);
+    temp_file->filename = g_strdup(template);
+    temp_file->stream = NULL;
+    return temp_file;
+}
+
+
+static void
+g_temp_file_free(GTempFile *temp_file)
+{
+    g_unlink(temp_file->filename);
+    g_free(temp_file->filename);
+
+    if (temp_file->stream != NULL)
+    {
+        fclose(temp_file->stream);
+    }
+}
+
+
+static void
+g_temp_file_open_stream(GTempFile *temp_file)
+{
+    int  fd = g_mkstemp(temp_file->filename);
+    temp_file->stream = fdopen(fd, "r+b");
+}
+
+
+/*-----------------------------------------------------------------------
+ * Helper functions
+ */
+
+static void
+test_round_trip(ip_set_t *set)
+{
+    ip_set_t  *read_set;
+
+    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
+    g_temp_file_open_stream(temp_file);
+
+    fail_unless(ipset_save(temp_file->stream, set, NULL),
+                "Could not save set");
+
+    fflush(temp_file->stream);
+    fseek(temp_file->stream, 0, SEEK_SET);
+
+    read_set = ipset_load(temp_file->stream, NULL);
+    fail_if(read_set == NULL,
+            "Could not read set");
+
+    fail_unless(ipset_is_equal(set, read_set),
+                "Set not same after saving/loading");
+
+    g_temp_file_free(temp_file);
+    ipset_free(read_set);
+}
 
 
 /*-----------------------------------------------------------------------
@@ -80,35 +154,10 @@ END_TEST
 START_TEST(test_store_empty)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
@@ -300,110 +349,35 @@ END_TEST
 START_TEST(test_ipv4_store_01)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv4_add(&set, &IPV4_ADDR_1);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
 START_TEST(test_ipv4_store_02)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv4_add_network(&set, &IPV4_ADDR_1, 24);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
 START_TEST(test_ipv4_store_03)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv4_add(&set, &IPV4_ADDR_1);
     ipset_ipv4_add(&set, &IPV4_ADDR_2);
     ipset_ipv4_add_network(&set, &IPV4_ADDR_3, 24);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
@@ -595,110 +569,35 @@ END_TEST
 START_TEST(test_ipv6_store_01)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv6_add(&set, &IPV6_ADDR_1);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
 START_TEST(test_ipv6_store_02)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv6_add_network(&set, &IPV6_ADDR_1, 24);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
 START_TEST(test_ipv6_store_03)
 {
     ip_set_t  set;
-    ip_set_t  *read_set;
 
     ipset_init(&set);
     ipset_ipv6_add(&set, &IPV6_ADDR_1);
     ipset_ipv6_add(&set, &IPV6_ADDR_2);
     ipset_ipv6_add_network(&set, &IPV6_ADDR_3, 24);
-
-    GOutputStream  *ostream =
-        g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
-    GMemoryOutputStream  *mostream =
-        G_MEMORY_OUTPUT_STREAM(ostream);
-
-    fail_unless(ipset_save(ostream, &set, NULL),
-                "Could not save set");
-
-    GInputStream  *istream =
-        g_memory_input_stream_new_from_data
-        (g_memory_output_stream_get_data(mostream),
-         g_memory_output_stream_get_data_size(mostream),
-         NULL);
-
-    read_set = ipset_load(istream, NULL);
-    fail_if(read_set == NULL,
-            "Could not read set");
-
-    fail_unless(ipset_is_equal(&set, read_set),
-                "Set not same after saving/loading");
-
-    g_object_unref(ostream);
-    g_object_unref(istream);
+    test_round_trip(&set);
     ipset_done(&set);
-    ipset_free(read_set);
 }
 END_TEST
 
@@ -762,7 +661,6 @@ main(int argc, const char **argv)
     Suite  *suite = ipset_suite();
     SRunner  *runner = srunner_create(suite);
 
-    g_type_init();
     ipset_init_library();
 
     srunner_run_all(runner, CK_NORMAL);

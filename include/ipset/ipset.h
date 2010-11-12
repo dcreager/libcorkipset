@@ -14,7 +14,6 @@
 #include <stdio.h>
 
 #include <glib.h>
-#include <gio/gio.h>
 
 #include <ipset/ip.h>
 #include <ipset/internal.h>
@@ -119,7 +118,7 @@ ipset_memory_size(ip_set_t *set);
  */
 
 gboolean
-ipset_save(GOutputStream *stream,
+ipset_save(FILE *stream,
            ip_set_t *set,
            GError **err);
 
@@ -129,7 +128,7 @@ ipset_save(GOutputStream *stream,
  */
 
 gboolean
-ipset_save_dot(GOutputStream *stream,
+ipset_save_dot(FILE *stream,
                ip_set_t *set,
                GError **err);
 
@@ -139,7 +138,7 @@ ipset_save_dot(GOutputStream *stream,
  */
 
 ip_set_t *
-ipset_load(GInputStream *stream,
+ipset_load(FILE *stream,
            GError **err);
 
 /**
@@ -410,7 +409,7 @@ ipmap_memory_size(ip_map_t *map);
  */
 
 gboolean
-ipmap_save(GOutputStream *stream,
+ipmap_save(FILE *stream,
            ip_map_t *map,
            GError **err);
 
@@ -420,7 +419,7 @@ ipmap_save(GOutputStream *stream,
  */
 
 ip_map_t *
-ipmap_load(GInputStream *stream,
+ipmap_load(FILE *stream,
            GError **err);
 
 /**

@@ -24,7 +24,7 @@
 
 
 gboolean
-ipmap_save(GOutputStream *stream,
+ipmap_save(FILE *stream,
            ip_map_t *map,
            GError **err)
 {
@@ -34,7 +34,7 @@ ipmap_save(GOutputStream *stream,
 
 
 ip_map_t *
-ipmap_load(GInputStream *stream,
+ipmap_load(FILE *stream,
            GError **err)
 {
     ip_map_t  *map;
