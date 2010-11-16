@@ -10,6 +10,10 @@
 
 #include <glib.h>
 
+#if GLIB_MINOR_VERSION < 14
+#define G_QUEUE_INIT { NULL, NULL, 0 }
+#endif
+
 #include <ipset/bdd/nodes.h>
 #include <ipset/logging.h>
 
