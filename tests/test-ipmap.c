@@ -77,7 +77,6 @@ g_temp_file_open_stream(GTempFile *temp_file)
 {
     int  fd = g_mkstemp(temp_file->filename);
     temp_file->stream = fdopen(fd, "r+b");
-    printf("--- %d %p %s\n", fd, temp_file->stream, temp_file->filename);
 }
 
 
