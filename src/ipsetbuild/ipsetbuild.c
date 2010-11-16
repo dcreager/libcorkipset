@@ -71,9 +71,14 @@ main(int argc, char **argv)
 
     if (argc <= 1)
     {
+#if GLIB_MINOR_VERSION < 14
+        fprintf(stderr, "ERROR: You need to specify at "
+                "least one input file.\n");
+#else
         fprintf(stderr, "ERROR: You need to specify at "
                 "least one input file.\n\n%s",
                 g_option_context_get_help(context, TRUE, NULL));
+#endif
         exit(1);
     }
 
