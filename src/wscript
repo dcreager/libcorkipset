@@ -39,7 +39,7 @@ def build(bld):
         includes = ["../include"],
         target = "ipset",
         uselib = "GLIB",
-        vnum = "1.0.0",
+        vnum = "1.1.0",
         export_incdirs = ["../include"],
     )
 

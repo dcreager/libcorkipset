@@ -71,7 +71,11 @@ g_temp_file_open_stream(GTempFile *temp_file)
 static void
 g_temp_file_open_mapped(GTempFile *temp_file)
 {
-    fclose(temp_file->stream);
+    if (temp_file->stream != NULL)
+    {
+        fclose(temp_file->stream);
+        temp_file->stream = NULL;
+    }
     temp_file->mapped =
         g_mapped_file_new(temp_file->filename, TRUE, NULL);
 }
