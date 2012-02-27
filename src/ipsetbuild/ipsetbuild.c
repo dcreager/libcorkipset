@@ -150,8 +150,7 @@ main(int argc, char **argv)
             guint32  addr[4];
             int  rc;
 
-            /* JZ 02272012 The `\n` causes inet_pton() to generate an error, so we remove it. */ 
-            int len = strlen(line);
+            size_t  len = strlen(line);
             line[len-1] = 0;
 
             /*
@@ -163,8 +162,7 @@ main(int argc, char **argv)
             if (rc == 1)
             {
                 ipset_ipv4_add(&set, addr);
-		ip_count++;
-                /* g_free(line); */
+                ip_count++;
                 continue;
             }
 
@@ -176,8 +174,7 @@ main(int argc, char **argv)
             if (rc == 1)
             {
                 ipset_ipv6_add(&set, addr);
-		ip_count++;
-                /* g_free(line); */
+                ip_count++;
                 continue;
             }
 
