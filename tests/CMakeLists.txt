@@ -31,7 +31,6 @@ endmacro(make_test)
 # Add calls to make_test for each .c test case in the tests/ directory.
 make_test(test-assignment)
 make_test(test-bdd)
-make_test(test-ip)
 make_test(test-ipmap)
 make_test(test-ipset)
 make_test(test-iterator)

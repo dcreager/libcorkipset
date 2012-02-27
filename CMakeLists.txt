@@ -33,9 +33,9 @@ string(REGEX REPLACE "-dev.*" "-dev" BASE_VERSION "${VERSION}")
 
 find_package(PkgConfig)
 
-pkg_check_modules(GLIB REQUIRED glib-2.0)
-include_directories(${GLIB_INCLUDE_DIRS})
-link_directories(${GLIB_LIBRARY_DIRS})
+pkg_check_modules(CORK REQUIRED "libcork >= 0.5.0")
+include_directories(${CORK_INCLUDE_DIRS})
+link_directories(${CORK_LIBRARY_DIRS})
 
 #-----------------------------------------------------------------------
 # Set some options
@@ -65,4 +65,5 @@ endif(CMAKE_COMPILER_IS_GNUCC)
 add_subdirectory(docs)
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(examples)
 add_subdirectory(tests)

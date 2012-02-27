@@ -19,8 +19,7 @@ set_target_properties(libipset PROPERTIES
     COMPILE_DEFINITIONS G_LOG_DOMAIN="ipset"
     OUTPUT_NAME ipset
     SOVERSION 1.1.0)
-target_link_libraries(libipset
-    ${GLIB_LIBRARIES})
+target_link_libraries(libipset ${CORK_LIBRARIES})
 
 install(TARGETS libipset
     RUNTIME DESTINATION bin
