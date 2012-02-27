@@ -27,6 +27,21 @@ install(TARGETS libipset
     LIBRARY DESTINATION lib)
 
 #-----------------------------------------------------------------------
+# Utility commands
+
+file(GLOB_RECURSE IPSETBUILD_SRC ipsetbuild/*.c)
+add_executable(ipsetbuild ${IPSETBUILD_SRC})
+target_link_libraries(ipsetbuild libipset)
+
+file(GLOB_RECURSE IPSETCAT_SRC ipsetcat/*.c)
+add_executable(ipsetcat ${IPSETCAT_SRC})
+target_link_libraries(ipsetcat libipset)
+
+file(GLOB_RECURSE IPSETDOT_SRC ipsetdot/*.c)
+add_executable(ipsetdot ${IPSETDOT_SRC})
+target_link_libraries(ipsetdot libipset)
+
+#-----------------------------------------------------------------------
 # Generate the pkg-config file
 
 set(prefix ${CMAKE_INSTALL_PREFIX})
