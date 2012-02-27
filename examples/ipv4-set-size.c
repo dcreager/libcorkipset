@@ -22,10 +22,9 @@ random_ip(struct cork_ipv4 *ip)
 {
     int  i;
 
-    for (i = 0; i < sizeof(ipv4_addr_t); i++)
-    {
+    for (i = 0; i < sizeof(struct cork_ipv4); i++) {
         uint8_t  random_byte = random() & 0xff;
-        ip->ip.v4[i] = random_byte;
+        ip->u8[i] = random_byte;
     }
 }
 
