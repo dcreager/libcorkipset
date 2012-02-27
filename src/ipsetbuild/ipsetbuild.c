@@ -150,6 +150,9 @@ main(int argc, char **argv)
             guint32  addr[4];
             int  rc;
 
+            size_t  len = strlen(line);
+            line[len-1] = 0;
+
             /*
              * Try to parse the line as an IPv4 address.  If that
              * works, add it to the set.
@@ -159,7 +162,7 @@ main(int argc, char **argv)
             if (rc == 1)
             {
                 ipset_ipv4_add(&set, addr);
-                g_free(line);
+                ip_count++;
                 continue;
             }
 
@@ -171,7 +174,7 @@ main(int argc, char **argv)
             if (rc == 1)
             {
                 ipset_ipv6_add(&set, addr);
-                g_free(line);
+                ip_count++;
                 continue;
             }
 
