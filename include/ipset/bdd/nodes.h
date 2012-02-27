@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010, RedJack, LLC.
+ * Copyright © 2010-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -14,23 +14,21 @@
 
 #include <stdio.h>
 
-#include <glib.h>
+#include <libcork/core.h>
+#include <libcork/ds.h>
 
 
 /*-----------------------------------------------------------------------
  * Error reporting
  */
 
-#define IPSET_ERROR ipset_error_quark()
+/* Hash of "ipset.h" */
+#define IPSET_ERROR  0xf2000181
 
-GQuark
-ipset_error_quark();
-
-
-typedef enum
-{
-    IPSET_ERROR_PARSE_ERROR
-} IpsetError;
+enum ipset_error {
+    IPSET_IO_ERROR,
+    IPSET_PARSE_ERROR
+};
 
 
 /*-----------------------------------------------------------------------
@@ -40,15 +38,13 @@ typedef enum
 /**
  * Extract the byte that contains a particular bit in an array.
  */
-
 #define IPSET_BIT_GET_BYTE(array, i)            \
-    (((guint8 *) (array))[(i) / 8])
+    (((uint8_t *) (array))[(i) / 8])
 
 /**
  * Create a bit mask that extracts a particular bit from the byte that
  * it lives in.
  */
-
 #define IPSET_BIT_ON_MASK(i)                    \
     (0x80 >> ((i) % 8))
 
@@ -56,7 +52,6 @@ typedef enum
  * Create a bit mask that extracts everything except for a particular
  * bit from the byte that it lives in.
  */
-
 #define IPSET_BIT_NEG_MASK(i)                   \
     (~IPSET_BIT_ON_MASK(i))
 
@@ -64,7 +59,6 @@ typedef enum
  * Return whether a particular bit is set in a byte array.  Bits are
  * numbered from 0, in a big-endian order.
  */
-
 #define IPSET_BIT_GET(array, i)                 \
     ((IPSET_BIT_GET_BYTE(array, i) &            \
       IPSET_BIT_ON_MASK(i)) != 0)
@@ -73,7 +67,6 @@ typedef enum
  * Set (or unset) a particular bit is set in a byte array.  Bits are
  * numbered from 0, in a big-endian order.
  */
-
 #define IPSET_BIT_SET(array, i, val)                           \
     (IPSET_BIT_GET_BYTE(array, i) =                            \
      (IPSET_BIT_GET_BYTE(array, i) & IPSET_BIT_NEG_MASK(i))    \
@@ -87,8 +80,7 @@ typedef enum
 /**
  * Each variable in a BDD is referred to by number.
  */
-
-typedef guint  ipset_variable_t;
+typedef unsigned int  ipset_variable;
 
 
 /**
@@ -96,8 +88,7 @@ typedef guint  ipset_variable_t;
  * non-negative, but must be within the range of the <i>signed</i>
  * integer type.
  */
-
-typedef gint  ipset_range_t;
+typedef int  ipset_range;
 
 
 /**
@@ -108,27 +99,23 @@ typedef gint  ipset_range_t;
  * and has the terminal value stored in the remaining bits.  The ID of
  * a nonterminal node is simply a pointer to the node struct.
  */
-
-typedef gpointer  ipset_node_id_t;
+typedef void  *ipset_node_id;
 
 
 /**
  * Nodes can either be terminal or nonterminal.
  */
-
-typedef enum ipset_node_type
-{
+enum ipset_node_type {
     IPSET_TERMINAL_NODE,
     IPSET_NONTERMINAL_NODE
-} ipset_node_type_t;
+};
 
 
 /**
  * Return the type of node represented by a particular node ID.
  */
-
-ipset_node_type_t
-ipset_node_get_type(ipset_node_id_t node);
+enum ipset_node_type
+ipset_node_get_type(ipset_node_id node);
 
 
 /**
@@ -136,17 +123,15 @@ ipset_node_get_type(ipset_node_id_t node);
  * This does not include duplicates if a node is reachable via more
  * than one path.
  */
-
-gsize
-ipset_node_reachable_count(ipset_node_id_t node);
+size_t
+ipset_node_reachable_count(ipset_node_id node);
 
 
 /**
  * Return the amount of memory used by the nodes in the given BDD.
  */
-
-gsize
-ipset_node_memory_size(ipset_node_id_t node);
+size_t
+ipset_node_memory_size(ipset_node_id node);
 
 
 /*-----------------------------------------------------------------------
@@ -157,9 +142,8 @@ ipset_node_memory_size(ipset_node_id_t node);
  * Return the value of a terminal node.  The result is undefined if
  * the node ID represents a nonterminal.
  */
-
-ipset_range_t
-ipset_terminal_value(ipset_node_id_t node_id);
+ipset_range
+ipset_terminal_value(ipset_node_id node_id);
 
 
 /*-----------------------------------------------------------------------
@@ -175,60 +159,29 @@ ipset_terminal_value(ipset_node_id_t node_id);
  * true or 1.
  *
  * This type does not take care of ensuring that all BDD nodes are
- * reduced; that is handled by the node_cache_t class.
+ * reduced; that is handled by the node_cache class.
  */
-
-typedef struct ipset_node
-{
-    /**
-     * The variable that this node represents.
-     */
-
-    ipset_variable_t  variable;
-
-    /**
-     * The subtree node for when the variable is false.
-     */
-
-    ipset_node_id_t  low;
-
-    /**
-     * The subtree node for when the variable is true.
-     */
-
-    ipset_node_id_t  high;
-
-} ipset_node_t;
+struct ipset_node {
+    /** The variable that this node represents. */
+    ipset_variable  variable;
+    /** The subtree node for when the variable is false. */
+    ipset_node_id  low;
+    /** The subtree node for when the variable is true. */
+    ipset_node_id  high;
+};
 
 /**
  * Return the node struct of a nonterminal node.  The result is
  * undefined if the node ID represents a terminal.
  */
-
-ipset_node_t *
-ipset_nonterminal_node(ipset_node_id_t node_id);
+struct ipset_node *
+ipset_nonterminal_node(ipset_node_id node_id);
 
 /**
  * Print out a node object.
  */
-
 void
-ipset_node_fprint(FILE *stream, ipset_node_t *node);
-
-/**
- * Return a hash value for a node.
- */
-
-guint
-ipset_node_hash(ipset_node_t *node);
-
-/**
- * Test two nodes for equality.
- */
-
-gboolean
-ipset_node_equal(const ipset_node_t *node1,
-                 const ipset_node_t *node2);
+ipset_node_fprint(FILE *stream, struct ipset_node *node);
 
 
 /*-----------------------------------------------------------------------
@@ -239,109 +192,77 @@ ipset_node_equal(const ipset_node_t *node1,
  * A cache for BDD nodes.  By creating and retrieving nodes through
  * the cache, we ensure that a BDD is reduced.
  */
-
-typedef struct ipset_node_cache
-{
-    /**
-     * A cache of the nonterminal nodes, keyed by their contents.
-     */
-
-    GHashTable  *node_cache;
-
-    /**
-     * A cache of the results of the AND operation.
-     */
-
-    GHashTable  *and_cache;
-
-    /**
-     * A cache of the results of the OR operation.
-     */
-
-    GHashTable  *or_cache;
-
-    /**
-     * A cache of the results of the ITE operation.
-     */
-
-    GHashTable  *ite_cache;
-
-} ipset_node_cache_t;
+struct ipset_node_cache {
+    /** A cache of the nonterminal nodes, keyed by their contents. */
+    struct cork_hash_table  node_cache;
+    /** A cache of the results of the AND operation. */
+    struct cork_hash_table  and_cache;
+    /** A cache of the results of the OR operation. */
+    struct cork_hash_table  or_cache;
+    /** A cache of the results of the ITE operation. */
+    struct cork_hash_table  ite_cache;
+};
 
 /**
  * Convert between an index in the node vector, and the ID of the
  * corresponding nonterminal.  (Nonterminals have IDs < 0)
  */
-
-gsize
-ipset_node_id_to_index(ipset_node_id_t id);
+size_t
+ipset_node_id_to_index(ipset_node_id id);
 
 /**
  * Convert between the ID of a nonterminal and its index in the node
  * vector.  (Nonterminals have IDs < 0)
  */
-
-ipset_node_id_t
-ipset_index_to_node_id(gsize index);
+ipset_node_id
+ipset_index_to_node_id(size_t index);
 
 /**
  * Create a new node cache.
  */
-
-ipset_node_cache_t *
+struct ipset_node_cache *
 ipset_node_cache_new();
 
 /**
  * Free a node cache.
  */
-
 void
-ipset_node_cache_free(ipset_node_cache_t *cache);
+ipset_node_cache_free(struct ipset_node_cache *cache);
 
 /**
  * Create a new terminal node with the given value, returning its ID.
  * This function ensures that there is only one node with the given
  * value in this cache.
  */
-
-ipset_node_id_t
-ipset_node_cache_terminal(ipset_node_cache_t *cache,
-                          ipset_range_t value);
+ipset_node_id
+ipset_node_cache_terminal(struct ipset_node_cache *cache, ipset_range value);
 
 /**
  * Create a new nonterminal node with the given contents, returning
  * its ID.  This function ensures that there is only one node with the
  * given contents in this cache.
  */
-
-ipset_node_id_t
-ipset_node_cache_nonterminal(ipset_node_cache_t *cache,
-                             ipset_variable_t variable,
-                             ipset_node_id_t low,
-                             ipset_node_id_t high);
+ipset_node_id
+ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
+                             ipset_variable variable,
+                             ipset_node_id low, ipset_node_id high);
 
 
 /**
  * Load a BDD from an input stream.  The error field is filled in with
- * a GError object is the BDD can't be read for any reason.
+ * an error condition is the BDD can't be read for any reason.
  */
-
-ipset_node_id_t
-ipset_node_cache_load(FILE *stream,
-                      ipset_node_cache_t *cache,
-                      GError **err);
+ipset_node_id
+ipset_node_cache_load(FILE *stream, struct ipset_node_cache *cache);
 
 
 /**
  * Save a BDD to an output stream.  This encodes the set using only
  * those nodes that are reachable from the BDD's root node.
  */
-
-gboolean
-ipset_node_cache_save(FILE *stream,
-                      ipset_node_cache_t *cache,
-                      ipset_node_id_t node,
-                      GError **err);
+int
+ipset_node_cache_save(struct cork_stream_consumer *stream,
+                      struct ipset_node_cache *cache, ipset_node_id node);
 
 
 /**
@@ -349,12 +270,9 @@ ipset_node_cache_save(FILE *stream,
  * to the given output stream.  This graph only includes those nodes
  * that are reachable from the BDD's root node.
  */
-
-gboolean
-ipset_node_cache_save_dot(FILE *stream,
-                          ipset_node_cache_t *cache,
-                          ipset_node_id_t node,
-                          GError **err);
+int
+ipset_node_cache_save_dot(struct cork_stream_consumer *stream,
+                          struct ipset_node_cache *cache, ipset_node_id node);
 
 
 /*-----------------------------------------------------------------------
@@ -362,106 +280,26 @@ ipset_node_cache_save_dot(FILE *stream,
  */
 
 /**
- * The key for a cache that memoizes the results of a binary BDD
- * operator.
- */
-
-typedef struct ipset_binary_key
-{
-    ipset_node_id_t  lhs;
-    ipset_node_id_t  rhs;
-} ipset_binary_key_t;
-
-/**
- * Return a hash value for a binary operator key.
- */
-
-guint
-ipset_binary_key_hash(ipset_binary_key_t *key);
-
-/**
- * Test two binary operator keys for equality.
- */
-
-gboolean
-ipset_binary_key_equal(const ipset_binary_key_t *key1,
-                       const ipset_binary_key_t *key2);
-
-/**
- * Fill in the key for a commutative binary BDD operator.  This
- * ensures that reversed operands yield the same key.
- */
-
-void
-ipset_binary_key_commutative(ipset_binary_key_t *key,
-                             ipset_node_id_t lhs,
-                             ipset_node_id_t rhs);
-
-/**
- * The key for a cache that memoizes the results of a trinary BDD
- * operator.
- */
-
-typedef struct ipset_trinary_key
-{
-    ipset_node_id_t  f;
-    ipset_node_id_t  g;
-    ipset_node_id_t  h;
-} ipset_trinary_key_t;
-
-/**
- * Return a hash value for a trinary operator key.
- */
-
-guint
-ipset_trinary_key_hash(ipset_trinary_key_t *key);
-
-/**
- * Test two trinary operator keys for equality.
- */
-
-gboolean
-ipset_trinary_key_equal(const ipset_trinary_key_t *key1,
-                        const ipset_trinary_key_t *key2);
-
-/**
- * Fill in the key for a trinary BDD operator.
- */
-
-void
-ipset_trinary_key_init(ipset_trinary_key_t *key,
-                       ipset_node_id_t f,
-                       ipset_node_id_t g,
-                       ipset_node_id_t h);
-
-/**
  * Calculate the logical AND (∧) of two BDDs.
  */
-
-ipset_node_id_t
-ipset_node_cache_and(ipset_node_cache_t *cache,
-                     ipset_node_id_t lhs,
-                     ipset_node_id_t rhs);
+ipset_node_id
+ipset_node_cache_and(struct ipset_node_cache *cache,
+                     ipset_node_id lhs, ipset_node_id rhs);
 
 /**
  * Calculate the logical OR (∨) of two BDDs.
  */
-
-ipset_node_id_t
-ipset_node_cache_or(ipset_node_cache_t *cache,
-                    ipset_node_id_t lhs,
-                    ipset_node_id_t rhs);
+ipset_node_id
+ipset_node_cache_or(struct ipset_node_cache *cache,
+                    ipset_node_id lhs, ipset_node_id rhs);
 
 /**
  * Calculate the IF-THEN-ELSE of three BDDs.  The first BDD should
  * only have 0 and 1 (FALSE and TRUE) in its range.
  */
-
-ipset_node_id_t
-ipset_node_cache_ite(ipset_node_cache_t *cache,
-                     ipset_node_id_t f,
-                     ipset_node_id_t g,
-                     ipset_node_id_t h);
+ipset_node_id
+ipset_node_cache_ite(struct ipset_node_cache *cache,
+                     ipset_node_id f, ipset_node_id g, ipset_node_id h);
 
 
 /*-----------------------------------------------------------------------
@@ -471,37 +309,33 @@ ipset_node_cache_ite(ipset_node_cache_t *cache,
 /**
  * A function that provides the value for each variable in a BDD.
  */
-
-typedef gboolean
-(*ipset_assignment_func_t)(gconstpointer user_data,
-                           ipset_variable_t variable);
+typedef bool
+(*ipset_assignment_func)(const void *user_data,
+                         ipset_variable variable);
 
 /**
  * An assignment function that gets the variable values from an array
  * of gbooleans.
  */
-
-gboolean
-ipset_bool_array_assignment(gconstpointer user_data,
-                            ipset_variable_t variable);
+bool
+ipset_bool_array_assignment(const void *user_data,
+                            ipset_variable variable);
 
 /**
  * An assignment function that gets the variable values from an array
  * of bits.
  */
-
-gboolean
-ipset_bit_array_assignment(gconstpointer user_data,
-                           ipset_variable_t variable);
+bool
+ipset_bit_array_assignment(const void *user_data,
+                           ipset_variable variable);
 
 /**
  * Evaluate a BDD given a particular assignment of variables.
  */
-
-ipset_range_t
-ipset_node_evaluate(ipset_node_id_t node,
-                    ipset_assignment_func_t assignment,
-                    gconstpointer user_data);
+ipset_range
+ipset_node_evaluate(ipset_node_id node,
+                    ipset_assignment_func assignment,
+                    const void *user_data);
 
 
 /*-----------------------------------------------------------------------
@@ -514,13 +348,11 @@ ipset_node_evaluate(ipset_node_id_t node,
  * either true or false in a particular assignment without affecting
  * the result of the function.
  */
-
-typedef enum ipset_tribool
-{
+enum ipset_tribool {
     IPSET_FALSE = 0,
     IPSET_TRUE = 1,
     IPSET_EITHER = 2
-} ipset_tribool_t;
+};
 
 
 /**
@@ -532,8 +364,7 @@ typedef enum ipset_tribool
  * assignment without affecting the result of the function.
  */
 
-typedef struct ipset_assignment
-{
+struct ipset_assignment {
     /**
      * The underlying variable assignments are stored in a vector of
      * tribools.  Every variable that has a true or false value must
@@ -541,71 +372,60 @@ typedef struct ipset_assignment
      * appear to prevent gaps in the vector.  Any variables outside
      * the range of the vector are assumed to be EITHER.
      */
-
-    GArray  *values;
-} ipset_assignment_t;
+    cork_array(enum ipset_tribool)  values;
+};
 
 
 /**
  * Create a new assignment where all variables are indeterminite.
  */
-
-ipset_assignment_t *
+struct ipset_assignment *
 ipset_assignment_new();
 
 
 /**
  * Free an assignment.
  */
-
 void
-ipset_assignment_free(ipset_assignment_t *assignment);
+ipset_assignment_free(struct ipset_assignment *assignment);
 
 
 /**
  * Compare two assignments for equality.
  */
-
-gboolean
-ipset_assignment_equal(const ipset_assignment_t *assignment1,
-                       const ipset_assignment_t *assignment2);
+bool
+ipset_assignment_equal(const struct ipset_assignment *assignment1,
+                       const struct ipset_assignment *assignment2);
 
 
 /**
  * Set the given variable, and all higher variables, to the EITHER
  * value.
  */
-
 void
-ipset_assignment_cut(ipset_assignment_t *assignment,
-                     ipset_variable_t var);
+ipset_assignment_cut(struct ipset_assignment *assignment, ipset_variable var);
 
 
 /**
  * Clear the assignment, setting all variables to the EITHER value.
  */
-
 void
-ipset_assignment_clear(ipset_assignment_t *assignment);
+ipset_assignment_clear(struct ipset_assignment *assignment);
 
 
 /**
  * Return the value assigned to a particular variable.
  */
-
-ipset_tribool_t
-ipset_assignment_get(ipset_assignment_t *assignment,
-                     ipset_variable_t var);
+enum ipset_tribool
+ipset_assignment_get(struct ipset_assignment *assignment, ipset_variable var);
 
 
 /**
  * Set the value assigned to a particular variable.
  */
-
 void
-ipset_assignment_set(ipset_assignment_t *assignment,
-                     ipset_variable_t var,
-                     ipset_tribool_t value);
+ipset_assignment_set(struct ipset_assignment *assignment,
+                     ipset_variable var, enum ipset_tribool value);
 
 
 /*-----------------------------------------------------------------------
@@ -617,31 +437,23 @@ ipset_assignment_set(ipset_assignment_t *assignment,
  * variable in the assignment, the iterator yields a result with both
  * values.
  */
-
-typedef struct ipset_expanded_assignment
-{
-    /**
-     * Whether there are any more assignments in this iterator.
-     */
-
-    gboolean finished;
+struct ipset_expanded_assignment {
+    /** Whether there are any more assignments in this iterator. */
+    bool finished;
 
     /**
      * The variable values in the current expanded assignment.  Since
      * there won't be any EITHERs in the expanded assignment, we can
      * use a byte array, and represent each variable by a single bit.
      */
-
-    GByteArray  *values;
+    struct cork_buffer  values;
 
     /**
      * An array containing all of the variables that are EITHER in the
      * original assignment.
      */
-
-    GArray  *eithers;
-
-} ipset_expanded_assignment_t;
+    cork_array(ipset_variable)  eithers;
+};
 
 
 /**
@@ -650,26 +462,23 @@ typedef struct ipset_expanded_assignment
  * result with both values.  The iterator will ensure that the
  * specified number of variables are given concrete values.
  */
-
-ipset_expanded_assignment_t *
-ipset_assignment_expand(const ipset_assignment_t *assignment,
-                        ipset_variable_t var_count);
+struct ipset_expanded_assignment *
+ipset_assignment_expand(const struct ipset_assignment *assignment,
+                        ipset_variable var_count);
 
 
 /**
  * Free an expanded assignment iterator.
  */
-
 void
-ipset_expanded_assignment_free(ipset_expanded_assignment_t *exp);
+ipset_expanded_assignment_free(struct ipset_expanded_assignment *exp);
 
 
 /**
  * Advance the iterator to the next assignment.
  */
-
 void
-ipset_expanded_assignment_advance(ipset_expanded_assignment_t *exp);
+ipset_expanded_assignment_advance(struct ipset_expanded_assignment *exp);
 
 
 /*-----------------------------------------------------------------------
@@ -682,71 +491,57 @@ ipset_expanded_assignment_advance(ipset_expanded_assignment_t *exp);
  *
  * The iterator walks through each path in the BDD tree, stopping at
  * each terminal node.  Each time we reach a terminal node, we yield a
- * new ipset_assignment_t object representing the assignment of
- * variables along the current path.
+ * new ipset_assignment object representing the assignment of variables
+ * along the current path.
  *
  * We maintain a stack of nodes leading to the current terminal, which
  * allows us to backtrack up the path to find the next terminal when
  * we increment the iterator.
  */
-
-typedef struct ipset_bdd_iterator
-{
-    /**
-     * Whether there are any more assignments in this iterator.
-     */
-
-    gboolean finished;
+struct ipset_bdd_iterator {
+    /** Whether there are any more assignments in this iterator. */
+    bool finished;
 
     /**
      * The sequence of nonterminal nodes leading to the current
      * terminal.
      */
+    cork_array(ipset_node_id)  stack;
 
-    GArray  *stack;
-
-    /**
-     * The current assignment.
-     */
-
-    ipset_assignment_t  *assignment;
+    /** The current assignment. */
+    struct ipset_assignment  *assignment;
 
     /**
      * The value of the BDD's function when applied to the current
      * assignment.
      */
-
-    ipset_range_t  value;
-
-} ipset_bdd_iterator_t;
+    ipset_range  value;
+};
 
 
 /**
  * Return an iterator that yields all of the assignments in the given
  * BDD.  The iterator contains two items of interest.  The first is an
- * ipset_assignment_t providing the value that each variable takes,
- * while the second is the terminal value that is the result of the
- * BDD's function when applied to that variable assignment.
+ * ipset_assignment providing the value that each variable takes, while
+ * the second is the terminal value that is the result of the BDD's
+ * function when applied to that variable assignment.
  */
-
-ipset_bdd_iterator_t *
-ipset_node_iterate(ipset_node_id_t root);
+struct ipset_bdd_iterator *
+ipset_node_iterate(ipset_node_id root);
 
 
 /**
  * Free a BDD iterator.
  */
-
 void
-ipset_bdd_iterator_free(ipset_bdd_iterator_t *iterator);
+ipset_bdd_iterator_free(struct ipset_bdd_iterator *iterator);
 
 
 /**
  * Advance the iterator to the next assignment.
  */
-
 void
-ipset_bdd_iterator_advance(ipset_bdd_iterator_t *iterator);
+ipset_bdd_iterator_advance(struct ipset_bdd_iterator *iterator);
 
 
 #endif  /* IPSET_BDD_NODES_H */

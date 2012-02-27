@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -13,21 +13,19 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <libcork/core.h>
 #include <ipset/ipset.h>
 
 
-typedef uint8_t  ipv4_addr_t[4];
-
-
 static inline void
-random_ip(ipv4_addr_t *ip)
+random_ip(struct cork_ipv4 *ip)
 {
     int  i;
 
     for (i = 0; i < sizeof(ipv4_addr_t); i++)
     {
         uint8_t  random_byte = random() & 0xff;
-        (*ip)[i] = random_byte;
+        ip->ip.v4[i] = random_byte;
     }
 }
 
@@ -35,17 +33,14 @@ random_ip(ipv4_addr_t *ip)
 static void
 one_test(long num_elements)
 {
-    ip_set_t  set;
+    struct ip_set  set;
     long  i;
     size_t  size;
     double  size_per_element;
 
     ipset_init(&set);
-
-    for (i = 0; i < num_elements; i++)
-    {
-        ipv4_addr_t  ip;
-
+    for (i = 0; i < num_elements; i++) {
+        struct cork_ipv4  ip;
         random_ip(&ip);
         ipset_ipv4_add(&set, &ip);
     }
@@ -65,8 +60,7 @@ main(int argc, const char **argv)
     long  num_elements;
     long  i;
 
-    if (argc != 3)
-    {
+    if (argc != 3) {
         fprintf(stderr, "Usage: ipv4-set-size [# tests] [# elements]\n");
         return -1;
     }
@@ -80,8 +74,7 @@ main(int argc, const char **argv)
     ipset_init_library();
     srandom(time(NULL));
 
-    for (i = 0; i < num_tests; i++)
-    {
+    for (i = 0; i < num_tests; i++) {
         one_test(num_elements);
     }
 

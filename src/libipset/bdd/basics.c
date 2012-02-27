@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010, RedJack, LLC.
+ * Copyright © 2010-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -11,22 +11,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <glib.h>
+#include <libcork/core.h>
 
-#include <ipset/bdd/nodes.h>
-#include <ipset/logging.h>
-#include "../hash.c.in"
-
-
-GQuark
-ipset_error_quark()
-{
-    return g_quark_from_static_string("ipset-error-quark");
-}
+#include "ipset/bdd/nodes.h"
+#include "ipset/logging.h"
+#include "internal.h"
 
 
-ipset_node_type_t
-ipset_node_get_type(ipset_node_id_t node)
+enum ipset_node_type
+ipset_node_get_type(ipset_node_id node)
 {
     /*
      * The ID of a terminal node has its LSB set to 1, and has the
@@ -34,7 +27,7 @@ ipset_node_get_type(ipset_node_id_t node)
      * nonterminal node is simply a pointer to the node struct.
      */
 
-    guint  node_int = GPOINTER_TO_UINT(node);
+    uintptr_t  node_int = (uintptr_t) node;
 
     if ((node_int & 1) == 1)
     {
@@ -45,55 +38,61 @@ ipset_node_get_type(ipset_node_id_t node)
 }
 
 
-ipset_range_t
-ipset_terminal_value(ipset_node_id_t node_id)
+ipset_range
+ipset_terminal_value(ipset_node_id node_id)
 {
     /*
      * The ID of a terminal node has its LSB set to 1, and has the
      * terminal value stored in the remaining bits.
      */
 
-    guint  node_int = GPOINTER_TO_UINT(node_id);
-    return (gint) (node_int >> 1);
+    unsigned int  node_int = (uintptr_t) node_id;
+    return (int) (node_int >> 1);
 }
 
 
-ipset_node_t *
-ipset_nonterminal_node(ipset_node_id_t node_id)
+struct ipset_node *
+ipset_nonterminal_node(ipset_node_id node_id)
 {
     /*
      * The ID of a nonterminal node is simply a pointer to the node
      * struct.
      */
 
-    return (ipset_node_t *) node_id;
+    return (void *) (uintptr_t) node_id;
 }
 
 
-void ipset_node_fprint(FILE *stream, ipset_node_t *node)
+void
+ipset_node_fprint(FILE *stream, struct ipset_node *node)
 {
     fprintf(stream, "nonterminal(%u,%p,%p)",
             node->variable, node->low, node->high);
 }
 
 
-guint
-ipset_node_hash(ipset_node_t *node)
+static cork_hash
+ipset_node_hasher(const void *key)
 {
-    guint  hash = 0;
-    combine_hash(&hash, node->variable);
-    combine_hash(&hash, g_direct_hash(node->low));
-    combine_hash(&hash, g_direct_hash(node->high));
+    const struct ipset_node  *node = key;
+    /* Hash of "ipset_node" */
+    cork_hash  hash = 0xf3b7dc44;
+    hash = cork_hash_variable(hash, node->variable);
+    hash = cork_hash_variable(hash, node->low);
+    hash = cork_hash_variable(hash, node->high);
     return hash;
 }
 
 
-gboolean
-ipset_node_equal(const ipset_node_t *node1,
-                 const ipset_node_t *node2)
+static bool
+ipset_node_comparator(const void *key1, const void *key2)
 {
-    if (node1 == node2)
-        return TRUE;
+    const struct ipset_node  *node1 = key1;
+    const struct ipset_node  *node2 = key2;
+
+    if (node1 == node2) {
+        return true;
+    }
 
     return
         (node1->variable == node2->variable) &&
@@ -102,195 +101,192 @@ ipset_node_equal(const ipset_node_t *node1,
 }
 
 
-ipset_node_cache_t *
+static cork_hash
+ipset_binary_key_hasher(const void *vkey)
+{
+    const struct ipset_binary_key  *key = vkey;
+    /* Hash of "ipset_binary_key" */
+    cork_hash  hash = 0xe7b61538;
+    hash = cork_hash_variable(hash, key->lhs);
+    hash = cork_hash_variable(hash, key->rhs);
+    return hash;
+}
+
+static bool
+ipset_binary_key_comparator(const void *vkey1, const void *vkey2)
+{
+    const struct ipset_binary_key  *key1 = vkey1;
+    const struct ipset_binary_key  *key2 = vkey2;
+
+    if (key1 == key2) {
+        return true;
+    }
+
+    return (key1->lhs == key2->lhs) && (key1->rhs == key2->rhs);
+}
+
+
+static cork_hash
+ipset_trinary_key_hasher(const void *vkey)
+{
+    const struct ipset_trinary_key  *key = vkey;
+    /* Hash of "ipset_trinary_key" */
+    cork_hash  hash = 0xf21216b3;
+    hash = cork_hash_variable(hash, key->f);
+    hash = cork_hash_variable(hash, key->g);
+    hash = cork_hash_variable(hash, key->h);
+    return hash;
+}
+
+static bool
+ipset_trinary_key_comparator(const void *vkey1, const void *vkey2)
+{
+    const struct ipset_trinary_key  *key1 = vkey1;
+    const struct ipset_trinary_key  *key2 = vkey2;
+
+    if (key1 == key2) {
+        return true;
+    }
+
+    return
+        (key1->f == key2->f) &&
+        (key1->g == key2->g) &&
+        (key1->h == key2->h);
+}
+
+
+struct ipset_node_cache *
 ipset_node_cache_new()
 {
-    ipset_node_cache_t  *cache;
-
-    cache = g_slice_new(ipset_node_cache_t);
-    cache->node_cache =
-        g_hash_table_new((GHashFunc) ipset_node_hash,
-                         (GEqualFunc) ipset_node_equal);
-
-    cache->and_cache =
-        g_hash_table_new((GHashFunc) ipset_binary_key_hash,
-                         (GEqualFunc) ipset_binary_key_equal);
-
-    cache->or_cache =
-        g_hash_table_new((GHashFunc) ipset_binary_key_hash,
-                         (GEqualFunc) ipset_binary_key_equal);
-
-    cache->ite_cache =
-        g_hash_table_new((GHashFunc) ipset_trinary_key_hash,
-                         (GEqualFunc) ipset_trinary_key_equal);
-
+    struct ipset_node_cache  *cache = cork_new(struct ipset_node_cache);
+    cork_hash_table_init
+        (&cache->node_cache, 0, ipset_node_hasher, ipset_node_comparator);
+    cork_hash_table_init
+        (&cache->and_cache, 0,
+         ipset_binary_key_hasher, ipset_binary_key_comparator);
+    cork_hash_table_init
+        (&cache->or_cache, 0,
+         ipset_binary_key_hasher, ipset_binary_key_comparator);
+    cork_hash_table_init
+        (&cache->ite_cache, 0,
+         ipset_trinary_key_hasher, ipset_trinary_key_comparator);
     return cache;
 }
 
 
 void
-ipset_node_cache_free(ipset_node_cache_t *cache)
+ipset_node_cache_free(struct ipset_node_cache *cache)
 {
-    g_hash_table_destroy(cache->node_cache);
-    g_hash_table_destroy(cache->and_cache);
-    g_hash_table_destroy(cache->or_cache);
-    g_hash_table_destroy(cache->ite_cache);
-    g_slice_free(ipset_node_cache_t, cache);
+    cork_hash_table_done(&cache->node_cache);
+    cork_hash_table_done(&cache->and_cache);
+    cork_hash_table_done(&cache->or_cache);
+    cork_hash_table_done(&cache->ite_cache);
+    free(cache);
 }
 
 
-ipset_node_id_t
-ipset_node_cache_terminal(ipset_node_cache_t *cache,
-                          ipset_range_t value)
+ipset_node_id
+ipset_node_cache_terminal(struct ipset_node_cache *cache, ipset_range value)
 {
-    /*
-     * The ID of a terminal node has its LSB set to 1, and has the
-     * terminal value stored in the remaining bits.
-     */
+    /* The ID of a terminal node has its LSB set to 1, and has the
+     * terminal value stored in the remaining bits. */
+    DEBUG("Creating terminal node for %d", value);
 
-    g_d_debug("Creating terminal node for %d", value);
-
-    guint  node_int = (guint) value;
+    unsigned int  node_int = (unsigned int) value;
     node_int <<= 1;
     node_int |= 1;
 
-    g_d_debug("Node ID is %p", GUINT_TO_POINTER(node_int));
-
-    return GUINT_TO_POINTER(node_int);
+    DEBUG("Node ID is %p", ((void *) (uintptr_t) node_int));
+    return (void *) (uintptr_t) node_int;
 }
 
 
-ipset_node_id_t
-ipset_node_cache_nonterminal(ipset_node_cache_t *cache,
-                             ipset_variable_t variable,
-                             ipset_node_id_t low,
-                             ipset_node_id_t high)
+ipset_node_id
+ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
+                             ipset_variable variable,
+                             ipset_node_id low, ipset_node_id high)
 {
-    /*
-     * Don't allow any nonterminals whose low and high subtrees are
-     * the same, since the nonterminal would be redundant.
-     */
-
-    if (G_UNLIKELY(low == high))
-    {
-        g_d_debug("Skipping nonterminal(%u,%p,%p)",
-                  variable, low, high);
+    /* Don't allow any nonterminals whose low and high subtrees are the
+     * same, since the nonterminal would be redundant. */
+    if (CORK_UNLIKELY(low == high)) {
+        DEBUG("Skipping nonterminal(%u,%p,%p)", variable, low, high);
         return low;
     }
 
-    /*
-     * Check to see if there's already a nonterminal with these
-     * contents in the cache.
-     */
+    /* Check to see if there's already a nonterminal with these contents
+     * in the cache. */
+    DEBUG("Searching for nonterminal(%u,%p,%p)", variable, low, high);
 
-    g_d_debug("Searching for nonterminal(%u,%p,%p)",
-              variable, low, high);
-
-    ipset_node_t  search_node;
+    struct ipset_node  search_node;
     search_node.variable = variable;
     search_node.low = low;
     search_node.high = high;
 
-    gpointer  found_node;
-    gboolean  node_exists =
-        g_hash_table_lookup_extended(cache->node_cache,
-                                     &search_node,
-                                     &found_node,
-                                     NULL);
+    bool  is_new;
+    struct cork_hash_table_entry  *entry =
+        cork_hash_table_get_or_create
+        (&cache->node_cache, &search_node, &is_new);
 
-    if (node_exists)
-    {
-        /*
-         * There's already a node with these contents, so return its
-         * ID.
-         */
-
-        g_d_debug("Existing node, ID = %p", found_node);
-        return found_node;
+    if (!is_new) {
+        /* There's already a node with these contents, so return its ID. */
+        DEBUG("Existing node, ID = %p", entry->key);
+        return entry->key;
     } else {
-        /*
-         * This node doesn't exist yet.  Allocate a permanent copy of
-         * the node, add it to the cache, and then return its ID.
-         */
-
-        ipset_node_t  *real_node = g_slice_new(ipset_node_t);
-        memcpy(real_node, &search_node, sizeof(ipset_node_t));
-
-        g_hash_table_insert(cache->node_cache, real_node, NULL);
-
-        g_d_debug("NEW node, ID = %p", real_node);
+        /* This node doesn't exist yet.  Allocate a permanent copy of
+         * the node, add it to the cache, and then return its ID. */
+        struct ipset_node  *real_node = cork_new(struct ipset_node);
+        memcpy(real_node, &search_node, sizeof(struct ipset_node));
+        entry->key = real_node;
+        DEBUG("NEW node, ID = %p", real_node);
         return real_node;
     }
 }
 
 
-gboolean
-ipset_bool_array_assignment(gconstpointer user_data,
-                            ipset_variable_t variable)
+bool
+ipset_bool_array_assignment(const void *user_data, ipset_variable variable)
 {
-    const gboolean  *bool_array = (const gboolean *) user_data;
+    const bool  *bool_array = (const bool *) user_data;
     return bool_array[variable];
 }
 
 
-gboolean
-ipset_bit_array_assignment(gconstpointer user_data,
-                           ipset_variable_t variable)
+bool
+ipset_bit_array_assignment(const void *user_data, ipset_variable variable)
 {
     return IPSET_BIT_GET(user_data, variable);
 }
 
 
-ipset_range_t
-ipset_node_evaluate(ipset_node_id_t node_id,
-                    ipset_assignment_func_t assignment,
-                    gconstpointer user_data)
+ipset_range
+ipset_node_evaluate(ipset_node_id node_id,
+                    ipset_assignment_func assignment, const void *user_data)
 {
-    ipset_node_id_t  curr_node_id = node_id;
+    ipset_node_id  curr_node_id = node_id;
+    DEBUG("Evaluating BDD node %p", node_id);
 
-    g_d_debug("Evaluating BDD node %p", node_id);
+    /* As long as the current node is a nonterminal, we have to check
+     * the value of the current variable. */
+    while (ipset_node_get_type(curr_node_id) == IPSET_NONTERMINAL_NODE) {
+        /* We have to look up this variable in the assignment. */
+        struct ipset_node  *node = ipset_nonterminal_node(curr_node_id);
+        bool  this_value = assignment(user_data, node->variable);
 
-    /*
-     * As long as the current node is a nonterminal, we have to check
-     * the value of the current variable.
-     */
+        DEBUG("Variable %u has value %s", node->variable,
+              this_value? "TRUE": "FALSE");
 
-    while (ipset_node_get_type(curr_node_id) == IPSET_NONTERMINAL_NODE)
-    {
-        /*
-         * We have to look up this variable in the assignment.
-         */
-
-        ipset_node_t  *node = ipset_nonterminal_node(curr_node_id);
-        gboolean  this_value = assignment(user_data, node->variable);
-
-        g_d_debug("Variable %u has value %s", node->variable,
-                  this_value? "TRUE": "FALSE");
-
-        if (this_value)
-        {
-            /*
-             * This node's variable is true in the assignment vector,
-             * so trace down the high subtree.
-             */
-
+        if (this_value) {
+            /* This node's variable is true in the assignment vector, so
+             * trace down the high subtree. */
             curr_node_id = node->high;
         } else {
-            /*
-             * This node's variable is false in the assignment vector,
-             * so trace down the low subtree.
-             */
-
+            /* This node's variable is false in the assignment vector,
+             * so trace down the low subtree. */
             curr_node_id = node->low;
         }
     }
 
-    /*
-     * Once we find a terminal node, we've got the final result.
-     */
-
-    g_d_debug("Evaluated result is %d",
-              ipset_terminal_value(curr_node_id));
-
+    /* Once we find a terminal node, we've got the final result. */
+    DEBUG("Evaluated result is %d", ipset_terminal_value(curr_node_id));
     return ipset_terminal_value(curr_node_id);
 }
