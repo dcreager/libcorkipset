@@ -99,6 +99,10 @@ main(int argc, char **argv)
                     input_filename, cork_error_message());
             exit(1);
         }
+
+        if (close_stream) {
+            fclose(stream);
+        }
     }
 
     /* Generate a GraphViz dot file for the set. */

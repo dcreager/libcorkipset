@@ -106,6 +106,10 @@ main(int argc, char **argv)
                     input_filename, cork_error_message());
             exit(1);
         }
+
+        if (close_stream) {
+            fclose(stream);
+        }
     }
 
     /* Print out the IP addresses in the set. */
