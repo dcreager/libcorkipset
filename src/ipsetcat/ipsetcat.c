@@ -183,7 +183,7 @@ main(int argc, char **argv)
                             ipset_ip_to_string(&it->addr),
                             it->netmask);
 
-            if (fputs(str->str, ostream) != 0)
+            if (fputs(str->str, ostream) == EOF)
             {
                 fprintf(stderr, "Cannot write to file %s:\n  %s\n",
                         output_filename, strerror(errno));
@@ -208,7 +208,7 @@ main(int argc, char **argv)
             g_string_printf(str, "%s\n",
                             ipset_ip_to_string(&it->addr));
 
-            if (fputs(str->str, ostream) != 0)
+            if (fputs(str->str, ostream) == EOF)
             {
                 fprintf(stderr, "Cannot write to file %s:\n  %s\n",
                         output_filename, strerror(errno));
