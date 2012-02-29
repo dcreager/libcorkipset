@@ -22,18 +22,19 @@ extern struct ipset_node_cache  *ipset_cache;
 /**
  * Create a BDD for an IP address or family of IP addresses.  The
  * corresponding BDD will have each boolean variable set if the
- * corresponding bit is set in the IP address.  The netmask parameter
- * can be used to limit the number of bits to constrain; if this is less
- * than IPVX_BIT_SIZE, then an entire network will be added to the set.
- * The values of the BDD will all be 0 or 1, so the BDD is acceptable to
- * pass in as the condition in a call to ipset_node_cache_ite().
+ * corresponding bit is set in the IP address.  The cidr_prefix
+ * parameter can be used to limit the number of bits to constrain; if
+ * this is less than IPVX_BIT_SIZE, then an entire network will be added
+ * to the set.  The values of the BDD will all be 0 or 1, so the BDD is
+ * acceptable to pass in as the condition in a call to
+ * ipset_node_cache_ite().
  */
 
 ipset_node_id
-ipset_ipv4_make_ip_bdd(struct cork_ipv4 *addr, unsigned int netmask);
+ipset_ipv4_make_ip_bdd(struct cork_ipv4 *addr, unsigned int cidr_prefix);
 
 ipset_node_id
-ipset_ipv6_make_ip_bdd(struct cork_ipv6 *addr, unsigned int netmask);
+ipset_ipv6_make_ip_bdd(struct cork_ipv6 *addr, unsigned int cidr_prefix);
 
 
 #endif  /* IPSET_INTERNAL_H */
