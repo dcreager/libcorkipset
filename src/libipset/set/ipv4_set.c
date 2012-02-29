@@ -29,7 +29,11 @@
 /* Creates a identifier of the form “ipset_ipv4_<basename>”. */
 #define IPSET_NAME(basename) ipset_ipv4_##basename
 
+/* Creates a identifier of the form “ipset_<basename>_ipv4”. */
+#define IPSET_PRENAME(basename) ipset_##basename##_ipv4
+
 
 /* Now include all of the templates. */
+#include "inspection-template.c.in"
 #include "internal-template.c.in"
 #include "modify-template.c.in"

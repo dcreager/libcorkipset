@@ -188,6 +188,53 @@ START_TEST(test_ipv4_bad_netmask_02)
 }
 END_TEST
 
+START_TEST(test_ipv4_contains_01)
+{
+    struct ip_set  set;
+    struct cork_ipv4  addr;
+
+    ipset_init(&set);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    fail_if(ipset_ipv4_add(&set, &addr),
+            "Element should not be present");
+    fail_unless(ipset_contains_ipv4(&set, &addr),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv4_contains_02)
+{
+    struct ip_set  set;
+    struct cork_ipv4  addr;
+    struct cork_ip  ip;
+
+    ipset_init(&set);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    cork_ip_from_ipv4(&ip, &addr);
+    fail_if(ipset_ipv4_add(&set, &addr),
+            "Element should not be present");
+    fail_unless(ipset_contains_ip(&set, &ip),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv4_network_contains_01)
+{
+    struct ip_set  set;
+    struct cork_ipv4  addr;
+
+    ipset_init(&set);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    fail_if(ipset_ipv4_add_network(&set, &addr, 24),
+            "Element should not be present");
+    fail_unless(ipset_contains_ipv4(&set, &addr),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
 START_TEST(test_ipv4_equality_1)
 {
     struct ip_set  set1, set2;
@@ -390,6 +437,53 @@ START_TEST(test_ipv6_bad_netmask_02)
 }
 END_TEST
 
+START_TEST(test_ipv6_contains_01)
+{
+    struct ip_set  set;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    fail_if(ipset_ipv6_add(&set, &addr),
+            "Element should not be present");
+    fail_unless(ipset_contains_ipv6(&set, &addr),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv6_contains_02)
+{
+    struct ip_set  set;
+    struct cork_ipv6  addr;
+    struct cork_ip  ip;
+
+    ipset_init(&set);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    cork_ip_from_ipv6(&ip, &addr);
+    fail_if(ipset_ipv6_add(&set, &addr),
+            "Element should not be present");
+    fail_unless(ipset_contains_ip(&set, &ip),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv6_network_contains_01)
+{
+    struct ip_set  set;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    fail_if(ipset_ipv6_add_network(&set, &addr, 32),
+            "Element should not be present");
+    fail_unless(ipset_contains_ipv6(&set, &addr),
+                "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
 START_TEST(test_ipv6_equality_1)
 {
     struct ip_set  set1, set2;
@@ -548,6 +642,9 @@ ipset_suite()
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_01);
     tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_02);
+    tcase_add_test(tc_ipv4, test_ipv4_contains_01);
+    tcase_add_test(tc_ipv4, test_ipv4_contains_02);
+    tcase_add_test(tc_ipv4, test_ipv4_network_contains_01);
     tcase_add_test(tc_ipv4, test_ipv4_equality_1);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_1);
     tcase_add_test(tc_ipv4, test_ipv4_memory_size_1);
@@ -562,6 +659,9 @@ ipset_suite()
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_01);
     tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_01);
     tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_02);
+    tcase_add_test(tc_ipv6, test_ipv6_contains_01);
+    tcase_add_test(tc_ipv6, test_ipv6_contains_02);
+    tcase_add_test(tc_ipv6, test_ipv6_network_contains_01);
     tcase_add_test(tc_ipv6, test_ipv6_equality_1);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_1);
     tcase_add_test(tc_ipv6, test_ipv6_memory_size_1);
