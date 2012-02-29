@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010, RedJack, LLC.
+ * Copyright © 2010-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -8,38 +8,31 @@
  * ----------------------------------------------------------------------
  */
 
-
-#include <arpa/inet.h>
 #include <errno.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <glib.h>
+#include <libcork/core.h>
 
-#include <ipset/ipset.h>
-
-
-static gchar  *output_filename = NULL;
+#include "ipset/ipset.h"
 
 
-static GOptionEntry entries[] =
-{
-    { "output", 'o', 0, G_OPTION_ARG_FILENAME, &output_filename,
-      "output file (\"-\" for stdout)", "FILE" },
-    { NULL }
+static char  *output_filename = NULL;
+
+static struct option longopts[] = {
+    { "output", required_argument, NULL, 'o' },
+    { NULL, 0, NULL, 0 }
 };
 
-
-/**
- * A log handler that ignores the logging messages.
- */
-
 static void
-ignore_log_message(const gchar *log_domain, GLogLevelFlags log_level,
-                   const gchar *message, gpointer user_data)
+usage(void)
 {
+    fprintf(stderr,
+            "Usage: ipsetbuild [--output=<output file>]\n"
+            "                  <IP file>\n");
 }
 
 
@@ -48,89 +41,62 @@ main(int argc, char **argv)
 {
     ipset_init_library();
 
-    /*
-     * Parse the command-line options.
-     */
+    /* Parse the command-line options. */
 
-    GError  *error = NULL;
-    GOptionContext  *context;
+    int  ch;
+    while ((ch = getopt_long(argc, argv, "o:", longopts, NULL)) != -1) {
+        switch (ch) {
+            case 'o':
+                output_filename = optarg;
+                break;
 
-    context = g_option_context_new("INPUT FILES");
-    g_option_context_add_main_entries(context, entries, NULL);
+            default:
+                usage();
+                exit(1);
+        }
+    }
 
-    if (!g_option_context_parse(context, &argc, &argv, &error))
-    {
-        fprintf(stderr, "Error parsing command-line options: %s\n",
-                error->message);
+    argc -= optind;
+    argv += optind;
+
+    /* Verify that the user specified at least one SiLK file to read. */
+
+    if (argc == 0) {
+        fprintf
+            (stderr, "ERROR: You need to specify at least one input file.\n");
+        usage();
         exit(1);
     }
 
-    /*
-     * Verify that the user specified at least one SiLK file to read.
-     */
+    /* Read in the IP set files specified on the command line. */
 
-    if (argc <= 1)
-    {
-#if GLIB_MINOR_VERSION < 14
-        fprintf(stderr, "ERROR: You need to specify at "
-                "least one input file.\n");
-#else
-        fprintf(stderr, "ERROR: You need to specify at "
-                "least one input file.\n\n%s",
-                g_option_context_get_help(context, TRUE, NULL));
-#endif
-        exit(1);
-    }
-
-    /*
-     * Set up logging.
-     */
-
-    g_log_set_handler("ipset", G_LOG_LEVEL_DEBUG,
-                      ignore_log_message, NULL);
-
-    /*
-     * Read in the IP set files specified on the command line.
-     */
-
-    ip_set_t  set;
+    struct ip_set  set;
     ipset_init(&set);
 
     int  i;
-    for (i = 1; i < argc; i++)
-    {
+    for (i = 0; i < argc; i++) {
         const char  *filename = argv[i];
         FILE  *stream;
-        gboolean  close_stream;
+        bool  close_stream;
 
-        /*
-         * Create a FILE object for the file.
-         */
-
-        if (strcmp(filename, "-") == 0)
-        {
+        /* Create a FILE object for the file. */
+        if (strcmp(filename, "-") == 0) {
             fprintf(stderr, "Opening stdin...\n");
             filename = "stdin";
-
             stream = stdin;
-            close_stream = FALSE;
-        }
-
-        else
-        {
+            close_stream = false;
+        } else {
             fprintf(stderr, "Opening file %s...\n", filename);
-
             stream = fopen(filename, "rb");
-            if (stream == NULL)
-            {
+            if (stream == NULL) {
                 fprintf(stderr, "Cannot open file %s:\n  %s\n",
                         filename, strerror(errno));
                 exit(1);
             }
-
-            close_stream = TRUE;
+            close_stream = true;
         }
 
+<<<<<<< HEAD
         /*
          * Read in one IP address per line in the file.
          */
@@ -140,9 +106,15 @@ main(int argc, char **argv)
         gsize  ip_count_v4_block = 0;
         gsize  ip_count_v6 = 0;
         gsize  ip_count_v6_block = 0;
+=======
+        /* Read in one IP address per line in the file. */
+        size_t  ip_count = 0;
+>>>>>>> upstream/develop
 
 #define MAX_LINELENGTH  4096
+        char  line[MAX_LINELENGTH];
 
+<<<<<<< HEAD
         gchar  line[MAX_LINELENGTH];
         gchar  *slash_pos;
         gint   cidr;
@@ -211,92 +183,80 @@ main(int argc, char **argv)
                     ipset_ipv6_add(&set, addr);
                 }
                 continue;
+=======
+        while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
+            struct cork_ip  addr;
+
+            size_t  len = strlen(line);
+            line[len-1] = 0;
+
+            /* Try to parse the line as an IP address. */
+            if (cork_ip_init(&addr, line) != 0) {
+                fprintf(stderr, "%s\n", cork_error_message());
+                exit(1);
+>>>>>>> upstream/develop
             }
 
-            /*
-             * Otherwise, we've got an error.
-             */
-
-            fprintf(stderr, "\"%s\" is not a valid IP address.\n", line);
-            exit(1);
+            ipset_ip_add(&set, &addr);
+            ip_count++;
         }
 
-        if (ferror(stream))
-        {
-            /*
-             * There was an error reading from the stream.
-             */
-
+        if (ferror(stream)) {
+            /* There was an error reading from the stream. */
             fprintf(stderr, "Error reading from %s:\n  %s\n",
                     filename, strerror(errno));
             exit(1);
         }
 
+<<<<<<< HEAD
         fprintf(stderr, "Read %" G_GSIZE_FORMAT " IP address records from %s.\n (%" 
                 G_GSIZE_FORMAT " IPv4 addresses, %" G_GSIZE_FORMAT " IPv4 block%s, %" 
 		        G_GSIZE_FORMAT " IPv6 addresses, %" G_GSIZE_FORMAT " IPv6 block%s)\n",
                 ip_count, filename, ip_count_v4, ip_count_v4_block, 
                 (ip_count_v4_block == 1 ? "" : "s"), ip_count_v6, ip_count_v6_block, 
                 (ip_count_v6_block == 1 ? "" : "s"));
+=======
+        fprintf(stderr, "Read %zu IP addresses from %s.\n",
+                ip_count, filename);
+>>>>>>> upstream/develop
 
-        /*
-         * Free the streams before opening the next file.
-         */
-
-        if (close_stream)
-        {
+        /* Free the streams before opening the next file. */
+        if (close_stream) {
             fclose(stream);
         }
     }
 
-    fprintf(stderr, "Set uses %" G_GSIZE_FORMAT " bytes of memory.\n",
+    fprintf(stderr, "Set uses %zu bytes of memory.\n",
             ipset_memory_size(&set));
 
-    /*
-     * Serialize the IP set to the desired output file.
-     */
-
+    /* Serialize the IP set to the desired output file. */
     FILE  *ostream;
-    gboolean  close_ostream;
+    bool  close_ostream;
 
-    if ((output_filename == NULL) ||
-        (strcmp(output_filename, "-") == 0))
-    {
+    if ((output_filename == NULL) || (strcmp(output_filename, "-") == 0)) {
         fprintf(stderr, "Writing to stdout...\n");
-
         ostream = stdout;
         output_filename = "stdout";
-        close_ostream = FALSE;
-    }
-
-    else
-    {
+        close_ostream = false;
+    } else {
         fprintf(stderr, "Writing to file %s...\n", output_filename);
-
         ostream = fopen(output_filename, "wb");
-        if (ostream == NULL)
-        {
+        if (ostream == NULL) {
             fprintf(stderr, "Cannot open file %s:\n  %s\n",
                     output_filename, strerror(errno));
             exit(1);
         }
-
-        close_ostream = TRUE;
+        close_ostream = true;
     }
 
-    if (!ipset_save(ostream, &set, &error))
-    {
+    if (ipset_save(ostream, &set) != 0) {
         fprintf(stderr, "Error saving IP set:\n  %s\n",
-                error->message);
+                cork_error_message());
         exit(1);
     }
 
-    /*
-     * Close the output stream for exiting.
-     */
-
-    if (close_ostream)
-    {
+    /* Close the output stream for exiting. */
+    if (close_ostream) {
         fclose(ostream);
     }
 
