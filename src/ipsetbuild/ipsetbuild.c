@@ -98,15 +98,32 @@ main(int argc, char **argv)
 
         /* Read in one IP address per line in the file. */
         size_t  ip_count = 0;
+        size_t  ip_count_v4 = 0;
+        size_t  ip_count_v4_block = 0;
+        size_t  ip_count_v6 = 0;
+        size_t  ip_count_v6_block = 0;
 
 #define MAX_LINELENGTH  4096
         char  line[MAX_LINELENGTH];
+        char  *slash_pos;
+        unsigned int   cidr;
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
 
+            /* Chomp the trailing newline so we don't confuse our IP
+             * address parser. */
             size_t  len = strlen(line);
-            line[len-1] = 0;
+            line[len-1] = '\0';
+
+            /* Check for a / indicating a CIDR block.  If one is
+             * present, split the string there and parse the trailing
+             * part as a CIDR prefix integer. */
+            if ((slash_pos = strchr(line, '/')) != NULL) {
+                *slash_pos = '\0';
+                slash_pos++;
+                cidr = (unsigned int) strtol(slash_pos, NULL, 10);
+            }
 
             /* Try to parse the line as an IP address. */
             if (cork_ip_init(&addr, line) != 0) {
@@ -114,8 +131,23 @@ main(int argc, char **argv)
                 exit(1);
             }
 
-            ipset_ip_add(&set, &addr);
+            /* Add to address to the ipset and update the counters */
             ip_count++;
+            if (slash_pos == NULL) {
+                ipset_ip_add(&set, &addr);
+                if (addr.version == 4) {
+                    ip_count_v4++;
+                } else {
+                    ip_count_v6++;
+                }
+            } else {
+                ipset_ip_add_network(&set, &addr, cidr);
+                if (addr.version == 4) {
+                    ip_count_v4_block++;
+                } else {
+                    ip_count_v6_block++;
+                }
+            }
         }
 
         if (ferror(stream)) {
@@ -125,8 +157,12 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        fprintf(stderr, "Read %zu IP addresses from %s.\n",
+        fprintf(stderr, "Read %zu IP address records from %s.\n",
                 ip_count, filename);
+        fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
+                ip_count_v4_block, (ip_count_v4_block == 1)? "": "s");
+        fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
+                ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
 
         /* Free the streams before opening the next file. */
         if (close_stream) {
