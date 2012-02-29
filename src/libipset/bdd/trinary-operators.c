@@ -49,7 +49,8 @@ apply_ite(struct ipset_node_cache *cache,
 
     assert(ipset_node_get_type(f) == IPSET_NONTERMINAL_NODE);
 
-    struct ipset_node  *f_node = ipset_nonterminal_node(f);
+    struct ipset_node  *f_node =
+        ipset_node_cache_get_nonterminal(cache, f);
     struct ipset_node  *g_node = NULL;
     struct ipset_node  *h_node = NULL;
 
@@ -59,14 +60,14 @@ apply_ite(struct ipset_node_cache *cache,
     ipset_variable  min_variable = f_node->variable;
 
     if (ipset_node_get_type(g) == IPSET_NONTERMINAL_NODE) {
-        g_node = ipset_nonterminal_node(g);
+        g_node = ipset_node_cache_get_nonterminal(cache, g);
         if (g_node->variable < min_variable) {
             min_variable = g_node->variable;
         }
     }
 
     if (ipset_node_get_type(h) == IPSET_NONTERMINAL_NODE) {
-        h_node = ipset_nonterminal_node(h);
+        h_node = ipset_node_cache_get_nonterminal(cache, h);
         if (h_node->variable < min_variable) {
             min_variable = h_node->variable;
         }
@@ -128,7 +129,7 @@ static ipset_node_id
 cached_ite(struct ipset_node_cache *cache,
            ipset_node_id f, ipset_node_id g, ipset_node_id h)
 {
-    DEBUG("Applying ITE(%p,%p,%p)", f, g, h);
+    DEBUG("Applying ITE(%u,%u,%u)", f, g, h);
 
     /* Some trivial cases first. */
 
@@ -140,26 +141,26 @@ cached_ite(struct ipset_node_cache *cache,
      */
 
     if (ipset_node_get_type(f) == IPSET_TERMINAL_NODE) {
-        ipset_range  f_value = ipset_terminal_value(f);
+        ipset_value  f_value = ipset_terminal_value(f);
         ipset_node_id  result = (f_value == 0)? h: g;
-        DEBUG("Trivial result = %p", result);
+        DEBUG("Trivial result = %u", result);
         return result;
     }
 
     /* ITE(F,G,G) == G */
     if (g == h) {
-        DEBUG("Trivial result = %p", g);
+        DEBUG("Trivial result = %u", g);
         return g;
     }
 
     /* ITE(F,1,0) = F */
     if ((ipset_node_get_type(g) == IPSET_TERMINAL_NODE) &&
         (ipset_node_get_type(h) == IPSET_TERMINAL_NODE)) {
-        ipset_range  g_value = ipset_terminal_value(g);
-        ipset_range  h_value = ipset_terminal_value(h);
+        ipset_value  g_value = ipset_terminal_value(g);
+        ipset_value  h_value = ipset_terminal_value(h);
 
         if ((g_value == 1) && (h_value == 0)) {
-            DEBUG("Trivial result = %p", f);
+            DEBUG("Trivial result = %u", f);
             return f;
         }
     }
@@ -177,8 +178,8 @@ cached_ite(struct ipset_node_cache *cache,
 
     if (!is_new) {
         /* There's a result in the cache, so return it. */
-        DEBUG("Existing result = %p", entry->value);
-        return entry->value;
+        DEBUG("Existing result = %u", (ipset_node_id) (uintptr_t) entry->value);
+        return (ipset_node_id) (uintptr_t) entry->value;
     } else {
         /* This result doesn't exist yet.  Allocate a permanent copy of
          * the key.  Apply the operator, add the result to the cache,
@@ -186,11 +187,13 @@ cached_ite(struct ipset_node_cache *cache,
 
         struct ipset_trinary_key  *real_key =
             cork_new(struct ipset_trinary_key);
+        ipset_node_id  result;
         memcpy(real_key, &search_key, sizeof(struct ipset_trinary_key));
         entry->key = real_key;
-        entry->value = apply_ite(cache, f, g, h);
-        DEBUG("NEW result = %p", entry->value);
-        return entry->value;
+        result = apply_ite(cache, f, g, h);
+        entry->value = (void *) (uintptr_t) result;
+        DEBUG("NEW result = %u", result);
+        return result;
     }
 }
 

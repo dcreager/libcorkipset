@@ -210,7 +210,7 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
 
         /* Create a terminal node for this value and return it. */
         cork_hash_table_done(&cache_ids);
-        return ipset_node_cache_terminal(cache, value);
+        return ipset_terminal_node_id(value);
     }
 
     /* Otherwise, read in each nonterminal.  We need to keep track of a
@@ -237,8 +237,8 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
         ei_check(read_uint32(stream, (uint32_t *) &high));
         bytes_read += sizeof(int32_t);
 
-        DEBUG("Read serialized node %d = (%d,%" PRId32 ",%" PRId32 ")",
-              serialized_id, variable, low, high);
+        DEBUG("Read serialized node %d = (x%d? %" PRId32 ": %" PRId32 ")",
+              serialized_id, variable, high, low);
 
         /* Turn the low pointer into a node ID.  If the pointer is >= 0,
          * it's a terminal value.  Otherwise, its a nonterminal ID,
@@ -247,16 +247,17 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
         ipset_node_id  low_id;
 
         if (low >= 0) {
-            low_id = ipset_node_cache_terminal(cache, low);
+            low_id = ipset_terminal_node_id(low);
         } else {
             /* The file format guarantees that any node reference points
              * to a node earlier in the serialized array.  That means we
              * can assume that cache_ids has already been filled in for
              * this node. */
 
-            low_id = cork_hash_table_get(&cache_ids, (void *) (intptr_t) low);
+            low_id = (ipset_node_id) (uintptr_t)
+                cork_hash_table_get(&cache_ids, (void *) (intptr_t) low);
 
-            DEBUG("  Serialized ID %" PRId32 " is internal ID %p",
+            DEBUG("  Serialized ID %" PRId32 " is internal ID %u",
                   low, low_id);
         }
 
@@ -265,16 +266,17 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
         ipset_node_id  high_id;
 
         if (high >= 0) {
-            high_id = ipset_node_cache_terminal(cache, high);
+            high_id = ipset_terminal_node_id(high);
         } else {
             /* The file format guarantees that any node reference points
              * to a node earlier in the serialized array.  That means we
              * can assume that cache_ids has already been filled in for
              * this node. */
 
-            high_id = cork_hash_table_get(&cache_ids, (void *) (intptr_t) high);
+            high_id = (ipset_node_id) (uintptr_t)
+                cork_hash_table_get(&cache_ids, (void *) (intptr_t) high);
 
-            DEBUG("  Serialized ID %" PRId32 " is internal ID %p",
+            DEBUG("  Serialized ID %" PRId32 " is internal ID %u",
                   high, high_id);
         }
 
@@ -282,15 +284,15 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
         result = ipset_node_cache_nonterminal
             (cache, variable, low_id, high_id);
 
-        DEBUG("Internal node %p = nonterminal(%d,%p,%p)",
-              result, (int) variable, low_id, high_id);
+        DEBUG("Internal node %u = nonterminal(x%d? %u: %u)",
+              result, (int) variable, high_id, low_id);
 
         /* Remember the internal node ID for this new node, in case any
          * later serialized nodes point to it. */
 
         cork_hash_table_put
-            (&cache_ids, (void *) (intptr_t) serialized_id, result,
-             NULL, NULL, NULL);
+            (&cache_ids, (void *) (intptr_t) serialized_id,
+             (void *) (uintptr_t) result, NULL, NULL, NULL);
     }
 
     /* We should have reached the end of the encoded set. */

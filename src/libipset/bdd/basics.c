@@ -19,56 +19,11 @@
 #include "internal.h"
 
 
-enum ipset_node_type
-ipset_node_get_type(ipset_node_id node)
-{
-    /*
-     * The ID of a terminal node has its LSB set to 1, and has the
-     * terminal value stored in the remaining bits.  The ID of a
-     * nonterminal node is simply a pointer to the node struct.
-     */
-
-    uintptr_t  node_int = (uintptr_t) node;
-
-    if ((node_int & 1) == 1)
-    {
-        return IPSET_TERMINAL_NODE;
-    } else {
-        return IPSET_NONTERMINAL_NODE;
-    }
-}
-
-
-ipset_range
-ipset_terminal_value(ipset_node_id node_id)
-{
-    /*
-     * The ID of a terminal node has its LSB set to 1, and has the
-     * terminal value stored in the remaining bits.
-     */
-
-    unsigned int  node_int = (uintptr_t) node_id;
-    return (int) (node_int >> 1);
-}
-
-
-struct ipset_node *
-ipset_nonterminal_node(ipset_node_id node_id)
-{
-    /*
-     * The ID of a nonterminal node is simply a pointer to the node
-     * struct.
-     */
-
-    return (void *) (uintptr_t) node_id;
-}
-
-
 void
 ipset_node_fprint(FILE *stream, struct ipset_node *node)
 {
-    fprintf(stream, "nonterminal(%u,%p,%p)",
-            node->variable, node->low, node->high);
+    fprintf(stream, "nonterminal(x%u? %u: %u)",
+            node->variable, node->high, node->low);
 }
 
 
@@ -83,7 +38,6 @@ ipset_node_hasher(const void *key)
     hash = cork_hash_variable(hash, node->high);
     return hash;
 }
-
 
 static bool
 ipset_node_comparator(const void *key1, const void *key2)
@@ -160,6 +114,8 @@ struct ipset_node_cache *
 ipset_node_cache_new()
 {
     struct ipset_node_cache  *cache = cork_new(struct ipset_node_cache);
+    cork_array_init(&cache->chunks);
+    cache->largest_index = 0;
     cork_hash_table_init
         (&cache->node_cache, 0, ipset_node_hasher, ipset_node_comparator);
     cork_hash_table_init
@@ -175,32 +131,51 @@ ipset_node_cache_new()
 }
 
 
+static enum cork_hash_table_map_result
+free_keys(struct cork_hash_table_entry *entry, void *ud)
+{
+    free(entry->key);
+    return CORK_HASH_TABLE_MAP_DELETE;
+}
+
+
 void
 ipset_node_cache_free(struct ipset_node_cache *cache)
 {
+    size_t  i;
+    for (i = 0; i < cork_array_size(&cache->chunks); i++) {
+        free(cork_array_at(&cache->chunks, i));
+    }
+    cork_array_done(&cache->chunks);
     cork_hash_table_done(&cache->node_cache);
+    cork_hash_table_map(&cache->and_cache, free_keys, NULL);
     cork_hash_table_done(&cache->and_cache);
+    cork_hash_table_map(&cache->or_cache, free_keys, NULL);
     cork_hash_table_done(&cache->or_cache);
+    cork_hash_table_map(&cache->ite_cache, free_keys, NULL);
     cork_hash_table_done(&cache->ite_cache);
     free(cache);
 }
 
 
-ipset_node_id
-ipset_node_cache_terminal(struct ipset_node_cache *cache, ipset_range value)
+/**
+ * Returns the index of a new ipset_node instance.
+ */
+static ipset_value
+ipset_node_cache_alloc_node(struct ipset_node_cache *cache)
 {
-    /* The ID of a terminal node has its LSB set to 1, and has the
-     * terminal value stored in the remaining bits. */
-    DEBUG("Creating terminal node for %d", value);
-
-    unsigned int  node_int = (unsigned int) value;
-    node_int <<= 1;
-    node_int |= 1;
-
-    DEBUG("Node ID is %p", ((void *) (uintptr_t) node_int));
-    return (void *) (uintptr_t) node_int;
+    ipset_value  next_index = cache->largest_index++;
+    ipset_value  chunk_index = next_index >> IPSET_BDD_NODE_CACHE_BIT_SIZE;
+    if (chunk_index >= cork_array_size(&cache->chunks)) {
+        /* We've filled up all of the existing chunks, and need to
+         * create a new one. */
+        DEBUG("Allocating chunk #%zu", cork_array_size(&cache->chunks));
+        struct ipset_node  *new_chunk =
+            cork_calloc(IPSET_BDD_NODE_CACHE_SIZE, sizeof(struct ipset_node));
+        cork_array_append(&cache->chunks, new_chunk);
+    }
+    return next_index;
 }
-
 
 ipset_node_id
 ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
@@ -210,13 +185,13 @@ ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
     /* Don't allow any nonterminals whose low and high subtrees are the
      * same, since the nonterminal would be redundant. */
     if (CORK_UNLIKELY(low == high)) {
-        DEBUG("Skipping nonterminal(%u,%p,%p)", variable, low, high);
+        DEBUG("Skipping nonterminal(x%u? %u: %u)", variable, high, low);
         return low;
     }
 
     /* Check to see if there's already a nonterminal with these contents
      * in the cache. */
-    DEBUG("Searching for nonterminal(%u,%p,%p)", variable, low, high);
+    DEBUG("Searching for nonterminal(x%u? %u: %u)", variable, high, low);
 
     struct ipset_node  search_node;
     search_node.variable = variable;
@@ -230,16 +205,23 @@ ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
 
     if (!is_new) {
         /* There's already a node with these contents, so return its ID. */
-        DEBUG("Existing node, ID = %p", entry->key);
-        return entry->key;
+        struct ipset_node  *node = entry->key;
+        DEBUG("Existing node, ID = %u", node->id);
+        return node->id;
     } else {
         /* This node doesn't exist yet.  Allocate a permanent copy of
          * the node, add it to the cache, and then return its ID. */
-        struct ipset_node  *real_node = cork_new(struct ipset_node);
-        memcpy(real_node, &search_node, sizeof(struct ipset_node));
+        ipset_value  new_index = ipset_node_cache_alloc_node(cache);
+        ipset_node_id  new_node_id = ipset_nonterminal_node_id(new_index);
+        struct ipset_node  *real_node =
+            ipset_node_cache_get_nonterminal_by_index(cache, new_index);
+        real_node->id = new_node_id;
+        real_node->variable = variable;
+        real_node->low = low;
+        real_node->high = high;
         entry->key = real_node;
-        DEBUG("NEW node, ID = %p", real_node);
-        return real_node;
+        DEBUG("NEW node, ID = %u", new_node_id);
+        return new_node_id;
     }
 }
 
@@ -259,18 +241,19 @@ ipset_bit_array_assignment(const void *user_data, ipset_variable variable)
 }
 
 
-ipset_range
-ipset_node_evaluate(ipset_node_id node_id,
+ipset_value
+ipset_node_evaluate(const struct ipset_node_cache *cache, ipset_node_id node_id,
                     ipset_assignment_func assignment, const void *user_data)
 {
     ipset_node_id  curr_node_id = node_id;
-    DEBUG("Evaluating BDD node %p", node_id);
+    DEBUG("Evaluating BDD node %u", node_id);
 
     /* As long as the current node is a nonterminal, we have to check
      * the value of the current variable. */
     while (ipset_node_get_type(curr_node_id) == IPSET_NONTERMINAL_NODE) {
         /* We have to look up this variable in the assignment. */
-        struct ipset_node  *node = ipset_nonterminal_node(curr_node_id);
+        struct ipset_node  *node =
+            ipset_node_cache_get_nonterminal(cache, curr_node_id);
         bool  this_value = assignment(user_data, node->variable);
 
         DEBUG("Variable %u has value %s", node->variable,
@@ -288,6 +271,6 @@ ipset_node_evaluate(ipset_node_id node_id,
     }
 
     /* Once we find a terminal node, we've got the final result. */
-    DEBUG("Evaluated result is %d", ipset_terminal_value(curr_node_id));
+    DEBUG("Evaluated result is %u", ipset_terminal_value(curr_node_id));
     return ipset_terminal_value(curr_node_id);
 }

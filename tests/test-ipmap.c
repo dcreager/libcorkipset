@@ -341,13 +341,7 @@ START_TEST(test_ipv4_memory_size_1)
     cork_ipv4_init(&addr, "192.168.1.100");
     ipmap_ipv4_set(&map, &addr, 1);
 
-#if CORK_SIZEOF_POINTER == 4
-    expected = 396;
-#elif CORK_SIZEOF_POINTER == 8
-    expected = 792;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 33 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -368,13 +362,7 @@ START_TEST(test_ipv4_memory_size_2)
     cork_ipv4_init(&addr, "192.168.1.100");
     ipmap_ipv4_set_network(&map, &addr, 24, 1);
 
-#if CORK_SIZEOF_POINTER == 4
-    expected = 300;
-#elif CORK_SIZEOF_POINTER == 8
-    expected = 600;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 25 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -593,13 +581,7 @@ START_TEST(test_ipv6_memory_size_1)
     cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
     ipmap_ipv6_set(&map, &addr, 1);
 
-#if CORK_SIZEOF_POINTER == 4
-    expected = 1548;
-#elif CORK_SIZEOF_POINTER == 8
-    expected = 3096;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 129 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -620,13 +602,7 @@ START_TEST(test_ipv6_memory_size_2)
     cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
     ipmap_ipv6_set_network(&map, &addr, 32, 1);
 
-#if CORK_SIZEOF_POINTER == 4
-    expected = 396;
-#elif CORK_SIZEOF_POINTER == 8
-    expected = 792;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 33 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,

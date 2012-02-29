@@ -29,7 +29,7 @@ IPMAP_NAME(set_network)(struct ip_map *map, CORK_IP *elem,
     elem_bdd = IPSET_NAME(make_ip_bdd)(elem, cidr_prefix);
 
     /* Next, create a new constant BDD to represent the value. */
-    value_bdd = ipset_node_cache_terminal(ipset_cache, value);
+    value_bdd = ipset_terminal_value(value);
 
     /* Add elem to the map by constructing an if-then-else BDD.  If the
      * variables evaluate just like in elem_bdd (signifying that the

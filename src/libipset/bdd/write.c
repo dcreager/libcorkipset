@@ -63,7 +63,7 @@ typedef int
 
 typedef int
 (*write_terminal_func)(struct save_data *save_data,
-                       ipset_range terminal_value);
+                       ipset_value terminal_value);
 
 
 /**
@@ -99,6 +99,9 @@ constant_comparator(const void *key1, const void *key2)
  */
 
 struct save_data {
+    /* The node cache that we're saving nodes from. */
+    struct ipset_node_cache  *cache;
+
     /* The output stream to save the data to. */
     struct cork_stream_consumer  *stream;
 
@@ -143,7 +146,7 @@ save_visit_node(struct save_data *save_data,
     struct cork_hash_table_entry  *entry;
     bool  is_new;
     entry = cork_hash_table_get_or_create
-        (&save_data->serialized_ids, node_id, &is_new);
+        (&save_data->serialized_ids, (void *) (uintptr_t) node_id, &is_new);
 
     if (!is_new) {
         *dest = (intptr_t) entry->value;
@@ -154,7 +157,7 @@ save_visit_node(struct save_data *save_data,
              * just output the terminal node and use its value as the
              * serialized ID. */
 
-            ipset_range  value = ipset_terminal_value(node_id);
+            ipset_value  value = ipset_terminal_value(node_id);
 
             DEBUG("Writing terminal(%d)", value);
             rii_check(save_data->write_terminal(save_data, value));
@@ -165,9 +168,10 @@ save_visit_node(struct save_data *save_data,
             /* For nonterminals, we drill down into the node's children
              * first, then output the nonterminal node. */
 
-            struct ipset_node  *node = ipset_nonterminal_node(node_id);
-            DEBUG("Visiting node %p nonterminal(%u,%p,%p)",
-                  node_id, node->variable, node->low, node->high);
+            struct ipset_node  *node =
+                ipset_node_cache_get_nonterminal(save_data->cache, node_id);
+            DEBUG("Visiting node %u nonterminal(x%u? %u: %u)",
+                  node_id, node->variable, node->high, node->low);
 
             /* Output the node's nonterminal children before we output
              * the node itself. */
@@ -178,7 +182,7 @@ save_visit_node(struct save_data *save_data,
 
             /* Output the nonterminal */
             serialized_id  result = save_data->next_serialized_id--;
-            DEBUG("Writing node %p as serialized node %d = (%u,%d,%d)",
+            DEBUG("Writing node %u as serialized node %d = (x%u? %d: %d)",
                   node_id, result,
                   node->variable, serialized_low, serialized_high);
 
@@ -321,7 +325,7 @@ write_header_v1(struct save_data *save_data,
 
     /* Determine how many reachable nodes there are, to calculate the
      * size of the set. */
-    size_t  nonterminal_count = ipset_node_reachable_count(root);
+    size_t  nonterminal_count = ipset_node_reachable_count(cache, root);
     size_t  set_size =
         MAGIC_NUMBER_LENGTH +    /* magic number */
         sizeof(uint16_t) +        /* version number  */
@@ -353,7 +357,7 @@ write_footer_v1(struct save_data *save_data,
      * in place of the (nonexistent) list of nonterminal nodes. */
 
     if (ipset_node_get_type(root) == IPSET_TERMINAL_NODE) {
-        ipset_range  value = ipset_terminal_value(root);
+        ipset_value  value = ipset_terminal_value(root);
         return write_uint32(save_data->stream, value);
     }
 
@@ -362,7 +366,7 @@ write_footer_v1(struct save_data *save_data,
 
 
 static int
-write_terminal_v1(struct save_data *save_data, ipset_range terminal_value)
+write_terminal_v1(struct save_data *save_data, ipset_value terminal_value)
 {
     /* We don't have to write anything out for a terminal in a V1 file,
      * since the terminal's value will be encoded into the node ID
@@ -390,6 +394,7 @@ ipset_node_cache_save(struct cork_stream_consumer *stream, struct ipset_node_cac
                       ipset_node_id node)
 {
     struct save_data  save_data;
+    save_data.cache = cache;
     save_data.stream = stream;
     save_data.write_header = write_header_v1;
     save_data.write_footer = write_footer_v1;
@@ -413,7 +418,7 @@ static const char  *GRAPHVIZ_FOOTER =
 struct dot_data {
     /* The terminal value to leave out of the dot file.  This should be
      * the default value of the set or map. */
-    ipset_range  default_value;
+    ipset_value  default_value;
 
     /* A scratch buffer */
     struct cork_buffer  scratch;
@@ -440,7 +445,7 @@ write_footer_dot(struct save_data *save_data,
 
 
 static int
-write_terminal_dot(struct save_data *save_data, ipset_range terminal_value)
+write_terminal_dot(struct save_data *save_data, ipset_value terminal_value)
 {
     struct dot_data  *dot_data = save_data->user_data;
 
@@ -482,7 +487,7 @@ write_nonterminal_dot(struct save_data *save_data,
              (-serialized_node), (-serialized_low));
     } else {
         /* The low pointer is a terminal. */
-        ipset_range  low_value = (ipset_range) serialized_low;
+        ipset_value  low_value = (ipset_value) serialized_low;
 
         if (low_value == dot_data->default_value) {
             /* The terminal is the default value, so instead of a real
@@ -513,7 +518,7 @@ write_nonterminal_dot(struct save_data *save_data,
              (-serialized_node), (-serialized_high));
     } else {
         /* The high pointer is a terminal. */
-        ipset_range  high_value = (ipset_range) serialized_high;
+        ipset_value  high_value = (ipset_value) serialized_high;
 
         if (high_value == dot_data->default_value) {
             /* The terminal is the default value, so instead of a real
@@ -554,6 +559,7 @@ ipset_node_cache_save_dot(struct cork_stream_consumer *stream,
     };
 
     struct save_data  save_data;
+    save_data.cache = cache;
     save_data.stream = stream;
     save_data.write_header = write_header_dot;
     save_data.write_footer = write_footer_dot;

@@ -50,5 +50,5 @@ int
 IPMAP_NAME(get)(struct ip_map *map, CORK_IP *elem)
 {
     return ipset_node_evaluate
-        (map->map_bdd, IPMAP_NAME(assignment), elem);
+        (ipset_cache, map->map_bdd, IPMAP_NAME(assignment), elem);
 }

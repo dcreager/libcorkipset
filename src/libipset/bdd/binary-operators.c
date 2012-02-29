@@ -38,8 +38,8 @@ ipset_binary_key_commutative(struct ipset_binary_key *key,
  * A function that defines how the BDD operation is applied to two
  * terminal nodes.
  */
-typedef ipset_range
-(*operator_func)(ipset_range lhs_value, ipset_range rhs_value);
+typedef ipset_value
+(*operator_func)(ipset_value lhs_value, ipset_value rhs_value);
 
 
 /* forward declaration */
@@ -99,15 +99,16 @@ apply_op(struct ipset_node_cache *cache, struct cork_hash_table *op_cache,
              * the terminals' values, and construct a new terminal from
              * the result.  Note that we do not verify that the operator
              * returns a positive value. */
-            ipset_range  lhs_value = ipset_terminal_value(lhs);
-            ipset_range  rhs_value = ipset_terminal_value(rhs);
-            ipset_range  new_value = op(lhs_value, rhs_value);
-            return ipset_node_cache_terminal(cache, new_value);
+            ipset_value  lhs_value = ipset_terminal_value(lhs);
+            ipset_value  rhs_value = ipset_terminal_value(rhs);
+            ipset_value  new_value = op(lhs_value, rhs_value);
+            return ipset_terminal_node_id(new_value);
         } else {
             /* When one node is terminal, and the other is nonterminal,
              * we recurse down the subtrees of the nonterminal,
              * combining the results with the terminal. */
-            struct ipset_node  *rhs_node = ipset_nonterminal_node(rhs);
+            struct ipset_node  *rhs_node =
+                ipset_node_cache_get_nonterminal(cache, rhs);
             return recurse_left
                 (cache, op_cache, op, op_name, rhs_node, lhs);
         }
@@ -116,7 +117,8 @@ apply_op(struct ipset_node_cache *cache, struct cork_hash_table *op_cache,
             /* When one node is terminal, and the other is nonterminal,
              * we recurse down the subtrees of the nonterminal,
              * combining the results with the terminal. */
-            struct ipset_node  *lhs_node = ipset_nonterminal_node(lhs);
+            struct ipset_node  *lhs_node =
+                ipset_node_cache_get_nonterminal(cache, lhs);
             return recurse_left
                 (cache, op_cache, op, op_name, lhs_node, rhs);
         } else {
@@ -124,8 +126,10 @@ apply_op(struct ipset_node_cache *cache, struct cork_hash_table *op_cache,
              * depends on the variables of the nonterminals.  We always
              * recurse down the nonterminal with the smaller variable
              * index.  This ensures that our BDDs remain ordered. */
-            struct ipset_node  *lhs_node = ipset_nonterminal_node(lhs);
-            struct ipset_node  *rhs_node = ipset_nonterminal_node(rhs);
+            struct ipset_node  *lhs_node =
+                ipset_node_cache_get_nonterminal(cache, lhs);
+            struct ipset_node  *rhs_node =
+                ipset_node_cache_get_nonterminal(cache, rhs);
 
             if (lhs_node->variable == rhs_node->variable) {
                 return recurse_both
@@ -153,7 +157,7 @@ cached_op(struct ipset_node_cache *cache, struct cork_hash_table *op_cache,
 {
     /* Check to see if we've already performed the operation on these
      * operands. */
-    DEBUG("Applying %s(%p, %p)", op_name, lhs, rhs);
+    DEBUG("Applying %s(%u, %u)", op_name, lhs, rhs);
 
     struct cork_hash_table_entry  *entry;
     bool  is_new;
@@ -164,25 +168,27 @@ cached_op(struct ipset_node_cache *cache, struct cork_hash_table *op_cache,
 
     if (!is_new) {
         /* There's a result in the cache, so return it. */
-        DEBUG("Existing result = %p", entry->value);
-        return entry->value;
+        DEBUG("Existing result = %u", (ipset_node_id) (uintptr_t) entry->value);
+        return (uintptr_t) entry->value;
     } else {
         /* This result doesn't exist yet.  Allocate a permanent copy of
          * the key.  Apply the operator, add the result to the cache,
          * and then return it. */
 
         struct ipset_binary_key  *real_key = cork_new(struct ipset_binary_key);
+        ipset_node_id  result;
         memcpy(real_key, &search_key, sizeof(struct ipset_binary_key));
         entry->key = real_key;
-        entry->value = apply_op(cache, op_cache, op, op_name, lhs, rhs);
-        DEBUG("NEW result = %p", entry->value);
-        return entry->value;
+        result = apply_op(cache, op_cache, op, op_name, lhs, rhs);
+        entry->value = (void *) (uintptr_t) result;
+        DEBUG("NEW result = %u", result);
+        return result;
     }
 }
 
 
-static ipset_range
-and_op(ipset_range lhs_value, ipset_range rhs_value)
+static ipset_value
+and_op(ipset_value lhs_value, ipset_value rhs_value)
 {
     return (lhs_value & rhs_value);
 }
@@ -196,8 +202,8 @@ ipset_node_cache_and(struct ipset_node_cache *cache,
 }
 
 
-static ipset_range
-or_op(ipset_range lhs_value, ipset_range rhs_value)
+static ipset_value
+or_op(ipset_value lhs_value, ipset_value rhs_value)
 {
     return (lhs_value | rhs_value);
 }

@@ -18,8 +18,7 @@ bool
 ipset_is_empty(const struct ip_set *set)
 {
     /* Since BDDs are unique, the only empty set is the “false” BDD. */
-    return (set->set_bdd ==
-            ipset_node_cache_terminal(ipset_cache, false));
+    return (set->set_bdd == ipset_terminal_node_id(false));
 }
 
 bool
@@ -33,7 +32,7 @@ ipset_is_equal(const struct ip_set *set1, const struct ip_set *set2)
 size_t
 ipset_memory_size(const struct ip_set *set)
 {
-    return ipset_node_memory_size(set->set_bdd);
+    return ipset_node_memory_size(ipset_cache, set->set_bdd);
 }
 
 

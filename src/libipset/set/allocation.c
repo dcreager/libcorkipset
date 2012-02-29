@@ -20,7 +20,7 @@ ipset_init(struct ip_set *set)
 {
     /* The set starts empty, so every value assignment should yield
      * false. */
-    set->set_bdd = ipset_node_cache_terminal(ipset_cache, false);
+    set->set_bdd = ipset_terminal_node_id(false);
 }
 
 

@@ -30,7 +30,8 @@ add_node(struct ipset_bdd_iterator *iterator, ipset_node_id node_id)
         /* Add this nonterminal node to the stack, and trace down
          * further into the tree.  We check low edges first, so set the
          * node's variable to FALSE in the assignment. */
-        struct ipset_node  *node = ipset_nonterminal_node(node_id);
+        struct ipset_node  *node =
+            ipset_node_cache_get_nonterminal(iterator->cache, node_id);
 
         cork_array_append(&iterator->stack, node_id);
         ipset_assignment_set(iterator->assignment, node->variable, false);
@@ -45,7 +46,7 @@ add_node(struct ipset_bdd_iterator *iterator, ipset_node_id node_id)
 
 
 struct ipset_bdd_iterator *
-ipset_node_iterate(ipset_node_id root)
+ipset_node_iterate(struct ipset_node_cache *cache, ipset_node_id root)
 {
     /* First allocate the iterator itself, and all of its contained
      * fields. */
@@ -53,6 +54,7 @@ ipset_node_iterate(ipset_node_id root)
     struct ipset_bdd_iterator  *iterator =
         cork_new(struct ipset_bdd_iterator);
     iterator->finished = false;
+    iterator->cache = cache;
     cork_array_init(&iterator->stack);
     iterator->assignment = ipset_assignment_new();
 
@@ -93,7 +95,7 @@ ipset_bdd_iterator_advance(struct ipset_bdd_iterator *iterator)
             (&iterator->stack, cork_array_size(&iterator->stack) - 1);
 
         struct ipset_node  *last_node =
-            ipset_nonterminal_node(last_node_id);
+            ipset_node_cache_get_nonterminal(iterator->cache, last_node_id);
 
         enum ipset_tribool  current_value =
             ipset_assignment_get(iterator->assignment, last_node->variable);

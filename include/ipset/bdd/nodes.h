@@ -33,7 +33,7 @@ typedef unsigned int  ipset_variable;
  * non-negative, but must be within the range of the <i>signed</i>
  * integer type.
  */
-typedef int  ipset_range;
+typedef unsigned int  ipset_value;
 
 
 /**
@@ -44,39 +44,22 @@ typedef int  ipset_range;
  * and has the terminal value stored in the remaining bits.  The ID of
  * a nonterminal node is simply a pointer to the node struct.
  */
-typedef void  *ipset_node_id;
+typedef unsigned int  ipset_node_id;
 
 
 /**
  * Nodes can either be terminal or nonterminal.
  */
 enum ipset_node_type {
-    IPSET_TERMINAL_NODE,
-    IPSET_NONTERMINAL_NODE
+    IPSET_NONTERMINAL_NODE = 0,
+    IPSET_TERMINAL_NODE = 1
 };
 
 
 /**
  * Return the type of node represented by a particular node ID.
  */
-enum ipset_node_type
-ipset_node_get_type(ipset_node_id node);
-
-
-/**
- * Return the number of nodes that are reachable from the given node.
- * This does not include duplicates if a node is reachable via more
- * than one path.
- */
-size_t
-ipset_node_reachable_count(ipset_node_id node);
-
-
-/**
- * Return the amount of memory used by the nodes in the given BDD.
- */
-size_t
-ipset_node_memory_size(ipset_node_id node);
+#define ipset_node_get_type(node_id)  ((node_id) & 0x01)
 
 
 /*-----------------------------------------------------------------------
@@ -87,8 +70,13 @@ ipset_node_memory_size(ipset_node_id node);
  * Return the value of a terminal node.  The result is undefined if
  * the node ID represents a nonterminal.
  */
-ipset_range
-ipset_terminal_value(ipset_node_id node_id);
+#define ipset_terminal_value(node_id)  ((node_id) >> 1)
+
+/**
+ * Creates a terminal node ID from a terminal value.
+ */
+#define ipset_terminal_node_id(value) \
+    (((value) << 1) | IPSET_TERMINAL_NODE)
 
 
 /*-----------------------------------------------------------------------
@@ -107,6 +95,8 @@ ipset_terminal_value(ipset_node_id node_id);
  * reduced; that is handled by the node_cache class.
  */
 struct ipset_node {
+    /** The ID of this node. */
+    ipset_node_id  id;
     /** The variable that this node represents. */
     ipset_variable  variable;
     /** The subtree node for when the variable is false. */
@@ -116,11 +106,17 @@ struct ipset_node {
 };
 
 /**
- * Return the node struct of a nonterminal node.  The result is
- * undefined if the node ID represents a terminal.
+ * Return the "value" of a nonterminal node.  The value of a nonterminal
+ * is the index into the node array of the cache that the node belongs
+ * to.
  */
-struct ipset_node *
-ipset_nonterminal_node(ipset_node_id node_id);
+#define ipset_nonterminal_value(node_id) ((node_id) >> 1)
+
+/**
+ * Creates a nonterminal node ID from a nonterminal value.
+ */
+#define ipset_nonterminal_node_id(value) \
+    (((value) << 1) | IPSET_NONTERMINAL_NODE)
 
 /**
  * Print out a node object.
@@ -134,10 +130,22 @@ ipset_node_fprint(FILE *stream, struct ipset_node *node);
  */
 
 /**
+ * The log2 of the size of each chunk of BDD nodes.
+ */
+/* 16K elements per cache */
+#define IPSET_BDD_NODE_CACHE_BIT_SIZE  6
+#define IPSET_BDD_NODE_CACHE_SIZE  (1 << IPSET_BDD_NODE_CACHE_BIT_SIZE)
+#define IPSET_BDD_NODE_CACHE_MASK  (IPSET_BDD_NODE_CACHE_SIZE - 1)
+
+/**
  * A cache for BDD nodes.  By creating and retrieving nodes through
  * the cache, we ensure that a BDD is reduced.
  */
 struct ipset_node_cache {
+    /** The storage for the nodes managed by this cache. */
+    cork_array(struct ipset_node *)  chunks;
+    /** The largest nonterminal index that has been handed out. */
+    ipset_value  largest_index;
     /** A cache of the nonterminal nodes, keyed by their contents. */
     struct cork_hash_table  node_cache;
     /** A cache of the results of the AND operation. */
@@ -149,38 +157,42 @@ struct ipset_node_cache {
 };
 
 /**
- * Convert between an index in the node vector, and the ID of the
- * corresponding nonterminal.  (Nonterminals have IDs < 0)
+ * Returns the index of the chunk that the given nonterminal lives in.
  */
-size_t
-ipset_node_id_to_index(ipset_node_id id);
+#define ipset_nonterminal_chunk_index(index) \
+    ((index) >> IPSET_BDD_NODE_CACHE_BIT_SIZE)
 
 /**
- * Convert between the ID of a nonterminal and its index in the node
- * vector.  (Nonterminals have IDs < 0)
+ * Returns the offset of the given nonterminal within its chunk.
  */
-ipset_node_id
-ipset_index_to_node_id(size_t index);
+#define ipset_nonterminal_chunk_offset(index) \
+    ((index) & IPSET_BDD_NODE_CACHE_MASK)
+
+/**
+ * Returns a pointer to the ipset_node for a given nonterminal index.
+ */
+#define ipset_node_cache_get_nonterminal_by_index(cache, index) \
+    (&cork_array_at(&(cache)->chunks, ipset_nonterminal_chunk_index((index))) \
+     [ipset_nonterminal_chunk_offset((index))])
+
+/**
+ * Returns the ipset_node for a given nonterminal node ID.
+ */
+#define ipset_node_cache_get_nonterminal(cache, node_id) \
+    (ipset_node_cache_get_nonterminal_by_index \
+     ((cache), ipset_nonterminal_value((node_id))))
 
 /**
  * Create a new node cache.
  */
 struct ipset_node_cache *
-ipset_node_cache_new();
+ipset_node_cache_new(void);
 
 /**
  * Free a node cache.
  */
 void
 ipset_node_cache_free(struct ipset_node_cache *cache);
-
-/**
- * Create a new terminal node with the given value, returning its ID.
- * This function ensures that there is only one node with the given
- * value in this cache.
- */
-ipset_node_id
-ipset_node_cache_terminal(struct ipset_node_cache *cache, ipset_range value);
 
 /**
  * Create a new nonterminal node with the given contents, returning
@@ -191,6 +203,24 @@ ipset_node_id
 ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
                              ipset_variable variable,
                              ipset_node_id low, ipset_node_id high);
+
+
+/**
+ * Return the number of nodes that are reachable from the given node.
+ * This does not include duplicates if a node is reachable via more
+ * than one path.
+ */
+size_t
+ipset_node_reachable_count(const struct ipset_node_cache *cache,
+                           ipset_node_id node);
+
+
+/**
+ * Return the amount of memory used by the nodes in the given BDD.
+ */
+size_t
+ipset_node_memory_size(const struct ipset_node_cache *cache,
+                       ipset_node_id node);
 
 
 /**
@@ -277,8 +307,8 @@ ipset_bit_array_assignment(const void *user_data,
 /**
  * Evaluate a BDD given a particular assignment of variables.
  */
-ipset_range
-ipset_node_evaluate(ipset_node_id node,
+ipset_value
+ipset_node_evaluate(const struct ipset_node_cache *cache, ipset_node_id node,
                     ipset_assignment_func assignment,
                     const void *user_data);
 
@@ -447,6 +477,9 @@ struct ipset_bdd_iterator {
     /** Whether there are any more assignments in this iterator. */
     bool finished;
 
+    /** The node cache that we're iterating through. */
+    struct ipset_node_cache  *cache;
+
     /**
      * The sequence of nonterminal nodes leading to the current
      * terminal.
@@ -460,7 +493,7 @@ struct ipset_bdd_iterator {
      * The value of the BDD's function when applied to the current
      * assignment.
      */
-    ipset_range  value;
+    ipset_value  value;
 };
 
 
@@ -472,7 +505,7 @@ struct ipset_bdd_iterator {
  * function when applied to that variable assignment.
  */
 struct ipset_bdd_iterator *
-ipset_node_iterate(ipset_node_id root);
+ipset_node_iterate(struct ipset_node_cache *cache, ipset_node_id root);
 
 
 /**

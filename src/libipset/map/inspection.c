@@ -12,6 +12,7 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/ipset.h"
+#include "../internal.h"
 
 bool
 ipmap_is_empty(const struct ip_map *map)
@@ -32,7 +33,7 @@ ipmap_is_equal(const struct ip_map *map1, const struct ip_map *map2)
 size_t
 ipmap_memory_size(const struct ip_map *map)
 {
-    return ipset_node_memory_size(map->map_bdd);
+    return ipset_node_memory_size(ipset_cache, map->map_bdd);
 }
 
 

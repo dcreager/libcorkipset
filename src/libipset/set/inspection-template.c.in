@@ -50,5 +50,5 @@ bool
 IPSET_PRENAME(contains)(const struct ip_set *set, CORK_IP *elem)
 {
     return ipset_node_evaluate
-        (set->set_bdd, IPSET_NAME(assignment), elem);
+        (ipset_cache, set->set_bdd, IPSET_NAME(assignment), elem);
 }

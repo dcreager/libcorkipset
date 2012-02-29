@@ -40,15 +40,13 @@ IPSET_NAME(make_ip_bdd)(CORK_IP *addr, unsigned int cidr_prefix)
         cork_error_set
             (IPSET_ERROR, IPSET_PARSE_ERROR,
              "CIDR block %u out of range [0..%u]", cidr_prefix, IP_BIT_SIZE);
-        return ipset_node_cache_terminal(ipset_cache, false);
+        return ipset_terminal_node_id(false);
     }
 
     /* The end of the BDD node chain is the true terminal, indicating
      * that the address is in the set. */
-    ipset_node_id  result =
-        ipset_node_cache_terminal(ipset_cache, true);
-    ipset_node_id  false_node =
-        ipset_node_cache_terminal(ipset_cache, false);
+    ipset_node_id  result = ipset_terminal_node_id(true);
+    ipset_node_id  false_node = ipset_terminal_node_id(false);
 
     /* Since the BDD needs to be ordered, we have to iterate through the
      * IP address's bits in reverse order. */
