@@ -33,7 +33,7 @@ string(REGEX REPLACE "-dev.*" "-dev" BASE_VERSION "${VERSION}")
 
 find_package(PkgConfig)
 
-pkg_check_modules(CORK REQUIRED "libcork >= 0.5.0")
+pkg_check_modules(CORK REQUIRED "libcork >= 0.6.0")
 include_directories(${CORK_INCLUDE_DIRS})
 link_directories(${CORK_LIBRARY_DIRS})
 
