@@ -59,3 +59,13 @@ ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
     }
 }
 
+
+bool
+ipset_contains_ip(const struct ip_set *set, struct cork_ip *addr)
+{
+    if (addr->version == 4) {
+        return ipset_contains_ipv4(set, &addr->ip.v4);
+    } else {
+        return ipset_contains_ipv6(set, &addr->ip.v6);
+    }
+}

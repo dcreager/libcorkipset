@@ -143,6 +143,12 @@ ipset_ipv4_add_network(struct ip_set *set, struct cork_ipv4 *elem,
                        unsigned int netmask);
 
 /**
+ * Returns whether the given IPv4 address is in an IP set.
+ */
+bool
+ipset_contains_ipv4(const struct ip_set *set, struct cork_ipv4 *elem);
+
+/**
  * Adds a single IPv6 address to an IP set.  Returns whether the value
  * was already in the set or not.
  */
@@ -159,6 +165,12 @@ ipset_ipv6_add(struct ip_set *set, struct cork_ipv6 *elem);
 bool
 ipset_ipv6_add_network(struct ip_set *set, struct cork_ipv6 *elem,
                        unsigned int netmask);
+
+/**
+ * Returns whether the given IPv6 address is in an IP set.
+ */
+bool
+ipset_contains_ipv6(const struct ip_set *set, struct cork_ipv6 *elem);
 
 /**
  * Adds a single generic IP address to an IP set.  Returns whether the
@@ -178,6 +190,12 @@ ipset_ip_add(struct ip_set *set, struct cork_ip *addr);
 bool
 ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
                      unsigned int netmask);
+
+/**
+ * Returns whether the given generic IP address is in an IP set.
+ */
+bool
+ipset_contains_ip(const struct ip_set *set, struct cork_ip *elem);
 
 
 /**
