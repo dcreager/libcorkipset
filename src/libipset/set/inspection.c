@@ -50,12 +50,12 @@ ipset_ip_add(struct ip_set *set, struct cork_ip *addr)
 
 bool
 ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
-                     unsigned int netmask)
+                     unsigned int cidr_prefix)
 {
     if (addr->version == 4) {
-        return ipset_ipv4_add_network(set, &addr->ip.v4, netmask);
+        return ipset_ipv4_add_network(set, &addr->ip.v4, cidr_prefix);
     } else {
-        return ipset_ipv6_add_network(set, &addr->ip.v6, netmask);
+        return ipset_ipv6_add_network(set, &addr->ip.v6, cidr_prefix);
     }
 }
 

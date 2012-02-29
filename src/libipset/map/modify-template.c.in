@@ -17,7 +17,7 @@
 
 void
 IPMAP_NAME(set_network)(struct ip_map *map, CORK_IP *elem,
-                        unsigned int netmask, int value)
+                        unsigned int cidr_prefix, int value)
 {
     ipset_node_id  elem_bdd;
     ipset_node_id  value_bdd;
@@ -26,7 +26,7 @@ IPMAP_NAME(set_network)(struct ip_map *map, CORK_IP *elem,
     /* First, construct the BDD that represents this IP address — i.e.,
      * where each boolean variable is assigned TRUE or FALSE depending
      * on whether the corresponding bit is set in the address. */
-    elem_bdd = IPSET_NAME(make_ip_bdd)(elem, netmask);
+    elem_bdd = IPSET_NAME(make_ip_bdd)(elem, cidr_prefix);
 
     /* Next, create a new constant BDD to represent the value. */
     value_bdd = ipset_node_cache_terminal(ipset_cache, value);

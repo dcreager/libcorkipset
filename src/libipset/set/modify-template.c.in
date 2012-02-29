@@ -16,7 +16,8 @@
 
 
 bool
-IPSET_NAME(add_network)(struct ip_set *set, CORK_IP *elem, unsigned int netmask)
+IPSET_NAME(add_network)(struct ip_set *set, CORK_IP *elem,
+                        unsigned int cidr_prefix)
 {
     ipset_node_id  elem_bdd;
     ipset_node_id  new_set_bdd;
@@ -25,7 +26,7 @@ IPSET_NAME(add_network)(struct ip_set *set, CORK_IP *elem, unsigned int netmask)
     /* First, construct the BDD that represents this IP address — i.e.,
      * where each boolean variable is assigned TRUE or FALSE depending
      * on whether the corresponding bit is set in the address. */
-    elem_bdd = IPSET_NAME(make_ip_bdd)(elem, netmask);
+    elem_bdd = IPSET_NAME(make_ip_bdd)(elem, cidr_prefix);
 
     /* Add elem to the set by constructing the logical OR of the old set
      * and the new element's BDD. */
