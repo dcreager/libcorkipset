@@ -58,8 +58,8 @@ START_TEST(test_ipv4_iterate_01)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == IPV4_BIT_SIZE,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == IPV4_BIT_SIZE,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -91,8 +91,8 @@ START_TEST(test_ipv4_iterate_network_01)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 31,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 31,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -124,8 +124,8 @@ START_TEST(test_ipv4_iterate_network_02)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 16,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 16,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -168,8 +168,8 @@ START_TEST(test_ipv4_iterate_network_03)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 31,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 31,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -201,8 +201,8 @@ START_TEST(test_ipv6_iterate_01)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == IPV6_BIT_SIZE,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == IPV6_BIT_SIZE,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -234,8 +234,8 @@ START_TEST(test_ipv6_iterate_network_01)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 127,
-                "IP netmask 0 doesn't match (%u)", it->netmask);
+    fail_unless(it->cidr_prefix == 127,
+                "IP CIDR prefix 0 doesn't match (%u)", it->cidr_prefix);
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -267,8 +267,8 @@ START_TEST(test_ipv6_iterate_network_02)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 16,
-                "IP netmask 0 doesn't match (%u)", it->netmask);
+    fail_unless(it->cidr_prefix == 16,
+                "IP CIDR prefix 0 doesn't match (%u)", it->cidr_prefix);
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -311,8 +311,8 @@ START_TEST(test_ipv6_iterate_network_03)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 127,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 127,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -344,16 +344,16 @@ START_TEST(test_generic_ip_iterate_01)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 0,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 0,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_if(it->finished,
             "IP set should have more than 1 element");
     fail_unless(cork_ip_equal(&ip2, &it->addr),
                 "IP address 1 doesn't match");
-    fail_unless(it->netmask == 0,
-                "IP netmask 1 doesn't match");
+    fail_unless(it->cidr_prefix == 0,
+                "IP CIDR prefix 1 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,
@@ -398,16 +398,16 @@ START_TEST(test_generic_ip_iterate_02)
             "IP set shouldn't be empty");
     fail_unless(cork_ip_equal(&ip1, &it->addr),
                 "IP address 0 doesn't match");
-    fail_unless(it->netmask == 32,
-                "IP netmask 0 doesn't match");
+    fail_unless(it->cidr_prefix == 32,
+                "IP CIDR prefix 0 doesn't match");
 
     ipset_iterator_advance(it);
     fail_if(it->finished,
             "IP set should have more than 1 element");
     fail_unless(cork_ip_equal(&ip2, &it->addr),
                 "IP address 1 doesn't match");
-    fail_unless(it->netmask == 32,
-                "IP netmask 1 doesn't match");
+    fail_unless(it->cidr_prefix == 32,
+                "IP CIDR prefix 1 doesn't match");
 
     ipset_iterator_advance(it);
     fail_unless(it->finished,

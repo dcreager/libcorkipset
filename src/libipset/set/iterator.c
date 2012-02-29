@@ -71,14 +71,14 @@ create_ip_address(struct ipset_iterator *iterator)
      * copy is given as the current netmask.  We'll have calculated that
      * already based on the non-expanded assignment. */
     unsigned int  i;
-    for (i = 0; i < iterator->netmask; i++) {
+    for (i = 0; i < iterator->cidr_prefix; i++) {
         IPSET_BIT_SET(&addr->ip, i, IPSET_BIT_GET(exp->values.buf, i+1));
     }
 
 #if IPSET_DEBUG
     char  buf[CORK_IP_STRING_LENGTH];
     cork_ip_to_raw_string(addr, buf);
-    DEBUG("Current IP address is %s/%u", buf, iterator->netmask);
+    DEBUG("Current IP address is %s/%u", buf, iterator->cidr_prefix);
 #endif
 }
 
@@ -177,7 +177,7 @@ expand_ipv4(struct ipset_iterator *iterator)
     iterator->assignment_iterator =
         ipset_assignment_expand
         (iterator->bdd_iterator->assignment, last_bit + 1);
-    iterator->netmask = last_bit;
+    iterator->cidr_prefix = last_bit;
 
     process_expanded_assignment(iterator);
 }
@@ -202,7 +202,7 @@ expand_ipv6(struct ipset_iterator *iterator)
     iterator->assignment_iterator =
         ipset_assignment_expand
         (iterator->bdd_iterator->assignment, last_bit + 1);
-    iterator->netmask = last_bit;
+    iterator->cidr_prefix = last_bit;
 
     process_expanded_assignment(iterator);
 }

@@ -134,13 +134,13 @@ ipset_ipv4_add(struct ip_set *set, struct cork_ipv4 *elem);
 
 /**
  * Adds a network of IPv4 addresses to an IP set.  All of the addresses
- * that start with the first netmask bits of elem will be added to the
- * set.  Returns whether the network was already in the set or not.
+ * that start with the first cidr_prefix bits of elem will be added to
+ * the set.  Returns whether the network was already in the set or not.
  */
 
 bool
 ipset_ipv4_add_network(struct ip_set *set, struct cork_ipv4 *elem,
-                       unsigned int netmask);
+                       unsigned int cidr_prefix);
 
 /**
  * Returns whether the given IPv4 address is in an IP set.
@@ -158,13 +158,13 @@ ipset_ipv6_add(struct ip_set *set, struct cork_ipv6 *elem);
 
 /**
  * Adds a network of IPv6 addresses to an IP set.  All of the addresses
- * that start with the first netmask bits of elem will be added to the
- * set.  Returns whether the network was already in the set or not.
+ * that start with the first cidr_prefix bits of elem will be added to
+ * the set.  Returns whether the network was already in the set or not.
  */
 
 bool
 ipset_ipv6_add_network(struct ip_set *set, struct cork_ipv6 *elem,
-                       unsigned int netmask);
+                       unsigned int cidr_prefix);
 
 /**
  * Returns whether the given IPv6 address is in an IP set.
@@ -182,14 +182,14 @@ ipset_ip_add(struct ip_set *set, struct cork_ip *addr);
 
 /**
  * Adds a network of generic IP addresses to an IP set.  All of the
- * addresses that start with the first netmask bits of elem will be
+ * addresses that start with the first cidr_prefix bits of elem will be
  * added to the set.  Returns whether the network was already in the set
  * or not.
  */
 
 bool
 ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
-                     unsigned int netmask);
+                     unsigned int cidr_prefix);
 
 /**
  * Returns whether the given generic IP address is in an IP set.
@@ -249,9 +249,9 @@ struct ipset_iterator {
     /* The address of the current IP network in the iterator. */
     struct cork_ip  addr;
 
-    /* The netmask of the current IP network in the iterator.  For a
-     * single IP address, this will be 32 or 128. */
-    unsigned int  netmask;
+    /* The netmask of the current IP network in the iterator, given as a
+     * CIDR prefix.  For a single IP address, this will be 32 or 128. */
+    unsigned int  cidr_prefix;
 };
 
 
@@ -376,11 +376,12 @@ ipmap_ipv4_set(struct ip_map *map, struct cork_ipv4 *elem, int value);
 /**
  * Adds a network of IPv4 addresses to an IP map, with each address in
  * the network mapping to the given value.  All of the addresses that
- * start with the first netmask bits of elem will be added to the map.
+ * start with the first cidr_prefix bits of elem will be added to the
+ * map.
  */
 void
 ipmap_ipv4_set_network(struct ip_map *map, struct cork_ipv4 *elem,
-                       unsigned int netmask, int value);
+                       unsigned int cidr_prefix, int value);
 
 /**
  * Returns the value that an IPv4 address is mapped to in the map.
@@ -397,11 +398,12 @@ ipmap_ipv6_set(struct ip_map *map, struct cork_ipv6 *elem, int value);
 /**
  * Adds a network of IPv6 addresses to an IP map, with each address in
  * the network mapping to the given value.  All of the addresses that
- * start with the first netmask bits of elem will be added to the map.
+ * start with the first cidr_prefix bits of elem will be added to the
+ * map.
  */
 void
 ipmap_ipv6_set_network(struct ip_map *map, struct cork_ipv6 *elem,
-                       unsigned int netmask, int value);
+                       unsigned int cidr_prefix, int value);
 
 /**
  * Returns the value that an IPv6 address is mapped to in the map.
@@ -418,12 +420,12 @@ ipmap_ip_set(struct ip_map *map, struct cork_ip *addr, int value);
 /**
  * Adds a network of generic IP addresses to an IP map, with each
  * address in the network mapping to the given value.  All of the
- * addresses that start with the first netmask bits of elem will be
+ * addresses that start with the first cidr_prefix bits of elem will be
  * added to the map.
  */
 void
 ipmap_ip_set_network(struct ip_map *map, struct cork_ip *addr,
-                     unsigned int netmask, int value);
+                     unsigned int cidr_prefix, int value);
 
 /**
  * Returns the value that a generic IP address is mapped to in the

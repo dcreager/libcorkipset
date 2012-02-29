@@ -143,7 +143,7 @@ main(int argc, char **argv)
              !it->finished;
              ipset_iterator_advance(it)) {
             cork_ip_to_raw_string(&it->addr, ip_buf);
-            cork_buffer_printf(&buf, "%s/%u\n", ip_buf, it->netmask);
+            cork_buffer_printf(&buf, "%s/%u\n", ip_buf, it->cidr_prefix);
 
             if (fputs(buf.buf, ostream) == EOF) {
                 fprintf(stderr, "Cannot write to file %s:\n  %s\n",

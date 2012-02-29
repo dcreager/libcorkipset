@@ -242,7 +242,7 @@ START_TEST(test_ipv4_insert_network_03)
 }
 END_TEST
 
-START_TEST(test_ipv4_bad_netmask_01)
+START_TEST(test_ipv4_bad_cidr_prefix_01)
 {
     struct ip_map  map;
     struct cork_ipv4  addr;
@@ -251,12 +251,12 @@ START_TEST(test_ipv4_bad_netmask_01)
     cork_ipv4_init(&addr, "192.168.1.100");
     ipmap_ipv4_set_network(&map, &addr, 0, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
     ipmap_done(&map);
 }
 END_TEST
 
-START_TEST(test_ipv4_bad_netmask_02)
+START_TEST(test_ipv4_bad_cidr_prefix_02)
 {
     struct ip_map  map;
     struct cork_ipv4  addr;
@@ -265,7 +265,7 @@ START_TEST(test_ipv4_bad_netmask_02)
     cork_ipv4_init(&addr, "192.168.1.100");
     ipmap_ipv4_set_network(&map, &addr, 33, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
     ipmap_done(&map);
 }
 END_TEST
@@ -495,7 +495,7 @@ START_TEST(test_ipv6_insert_network_03)
 }
 END_TEST
 
-START_TEST(test_ipv6_bad_netmask_01)
+START_TEST(test_ipv6_bad_cidr_prefix_01)
 {
     struct ip_map  map;
     struct cork_ipv6  addr;
@@ -504,12 +504,12 @@ START_TEST(test_ipv6_bad_netmask_01)
     cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
     ipmap_ipv6_set_network(&map, &addr, 0, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
     ipmap_done(&map);
 }
 END_TEST
 
-START_TEST(test_ipv6_bad_netmask_02)
+START_TEST(test_ipv6_bad_cidr_prefix_02)
 {
     struct ip_map  map;
     struct cork_ipv6  addr;
@@ -518,7 +518,7 @@ START_TEST(test_ipv6_bad_netmask_02)
     cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
     ipmap_ipv6_set_network(&map, &addr, 129, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
     ipmap_done(&map);
 }
 END_TEST
@@ -679,8 +679,8 @@ ipmap_suite()
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_02);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_03);
-    tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_01);
-    tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_02);
+    tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_01);
+    tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_02);
     tcase_add_test(tc_ipv4, test_ipv4_equality_1);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_1);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_2);
@@ -696,8 +696,8 @@ ipmap_suite()
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_01);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_02);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_03);
-    tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_01);
-    tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_02);
+    tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_01);
+    tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_02);
     tcase_add_test(tc_ipv6, test_ipv6_equality_1);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_1);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_2);

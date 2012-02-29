@@ -31,12 +31,12 @@ IPSET_NAME(var_for_bit)(unsigned int bit)
 
 
 ipset_node_id
-IPSET_NAME(make_ip_bdd)(CORK_IP *addr, unsigned int netmask)
+IPSET_NAME(make_ip_bdd)(CORK_IP *addr, unsigned int cidr_prefix)
 {
     /* Special case — the BDD for a netmask that's out of range never
      * evaluates to true. */
 
-    if ((netmask == 0) || (netmask > IP_BIT_SIZE)) {
+    if ((cidr_prefix == 0) || (cidr_prefix > IP_BIT_SIZE)) {
         return ipset_node_cache_terminal(ipset_cache, false);
     }
 
@@ -50,7 +50,7 @@ IPSET_NAME(make_ip_bdd)(CORK_IP *addr, unsigned int netmask)
     /* Since the BDD needs to be ordered, we have to iterate through the
      * IP address's bits in reverse order. */
     int  i;
-    for (i = netmask-1; i >= 0; i--) {
+    for (i = cidr_prefix-1; i >= 0; i--) {
         ipset_variable  var = IPSET_NAME(var_for_bit)(i);
 
         if (IPSET_BIT_GET(addr, i)) {

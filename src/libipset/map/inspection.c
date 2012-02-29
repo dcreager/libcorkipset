@@ -49,12 +49,12 @@ ipmap_ip_set(struct ip_map *map, struct cork_ip *addr, int value)
 
 void
 ipmap_ip_set_network(struct ip_map *map, struct cork_ip *addr,
-                     unsigned int netmask, int value)
+                     unsigned int cidr_prefix, int value)
 {
     if (addr->version == 4) {
-        ipmap_ipv4_set_network(map, &addr->ip.v4, netmask, value);
+        ipmap_ipv4_set_network(map, &addr->ip.v4, cidr_prefix, value);
     } else {
-        ipmap_ipv6_set_network(map, &addr->ip.v6, netmask, value);
+        ipmap_ipv6_set_network(map, &addr->ip.v6, cidr_prefix, value);
     }
 }
 
