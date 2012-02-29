@@ -21,9 +21,7 @@ set_target_properties(libipset PROPERTIES
     SOVERSION 1.1.0)
 target_link_libraries(libipset ${CORK_LIBRARIES})
 
-install(TARGETS libipset
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib)
+install(TARGETS libipset DESTINATION lib)
 
 #-----------------------------------------------------------------------
 # Utility commands
@@ -31,14 +29,17 @@ install(TARGETS libipset
 file(GLOB_RECURSE IPSETBUILD_SRC ipsetbuild/*.c)
 add_executable(ipsetbuild ${IPSETBUILD_SRC})
 target_link_libraries(ipsetbuild libipset)
+install(TARGETS ipsetbuild DESTINATION bin)
 
 file(GLOB_RECURSE IPSETCAT_SRC ipsetcat/*.c)
 add_executable(ipsetcat ${IPSETCAT_SRC})
 target_link_libraries(ipsetcat libipset)
+install(TARGETS ipsetcat DESTINATION bin)
 
 file(GLOB_RECURSE IPSETDOT_SRC ipsetdot/*.c)
 add_executable(ipsetdot ${IPSETDOT_SRC})
 target_link_libraries(ipsetdot libipset)
+install(TARGETS ipsetdot DESTINATION bin)
 
 #-----------------------------------------------------------------------
 # Generate the pkg-config file
