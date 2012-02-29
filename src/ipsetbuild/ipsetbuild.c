@@ -136,22 +136,39 @@ main(int argc, char **argv)
          */
 
         gsize  ip_count = 0;
+        gsize  ip_count_v4 = 0;
+        gsize  ip_count_v4_block = 0;
+        gsize  ip_count_v6 = 0;
+        gsize  ip_count_v6_block = 0;
 
 #define MAX_LINELENGTH  4096
 
         gchar  line[MAX_LINELENGTH];
+        gchar  *slash_pos;
+        gint   cidr;
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL)
         {
+            size_t  len = strlen(line);
+            line[len-1] = 0;
+
+            /* 
+             * Check for a / indicating a cidr block. Turn it into a 
+             * null and point at the following character, extract cidr 
+             */
+            if ((slash_pos = strchr(line, '/'))) 
+            {
+                *slash_pos = 0;
+                slash_pos++;
+                cidr = (int) strtol(slash_pos, (char **) NULL, 10);
+            }
+
             /*
              * Reserve enough space for an IPv6 address.
              */
 
             guint32  addr[4];
             int  rc;
-
-            size_t  len = strlen(line);
-            line[len-1] = 0;
 
             /*
              * Try to parse the line as an IPv4 address.  If that
@@ -161,8 +178,17 @@ main(int argc, char **argv)
             rc = inet_pton(AF_INET, line, addr);
             if (rc == 1)
             {
-                ipset_ipv4_add(&set, addr);
                 ip_count++;
+                if (slash_pos) 
+                {
+                    ip_count_v4_block++;
+                    ipset_ipv4_add_network(&set, addr, cidr);
+                } 
+                else 
+                {
+                    ip_count_v4++;
+                    ipset_ipv4_add(&set, addr);
+                }
                 continue;
             }
 
@@ -173,8 +199,17 @@ main(int argc, char **argv)
             rc = inet_pton(AF_INET6, line, addr);
             if (rc == 1)
             {
-                ipset_ipv6_add(&set, addr);
                 ip_count++;
+                if (slash_pos) 
+                {
+                    ip_count_v6_block++;
+                    ipset_ipv6_add_network(&set, addr, cidr);
+                } 
+                else 
+                {
+                    ip_count_v6++;
+                    ipset_ipv6_add(&set, addr);
+                }
                 continue;
             }
 
@@ -197,8 +232,12 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        fprintf(stderr, "Read %" G_GSIZE_FORMAT " IP addresses from %s.\n",
-                ip_count, filename);
+        fprintf(stderr, "Read %" G_GSIZE_FORMAT " IP address records from %s.\n (%" 
+                G_GSIZE_FORMAT " IPv4 addresses, %" G_GSIZE_FORMAT " IPv4 block%s, %" 
+		        G_GSIZE_FORMAT " IPv6 addresses, %" G_GSIZE_FORMAT " IPv6 block%s)\n",
+                ip_count, filename, ip_count_v4, ip_count_v4_block, 
+                (ip_count_v4_block == 1 ? "" : "s"), ip_count_v6, ip_count_v6_block, 
+                (ip_count_v6_block == 1 ? "" : "s"));
 
         /*
          * Free the streams before opening the next file.
