@@ -96,109 +96,49 @@ main(int argc, char **argv)
             close_stream = true;
         }
 
-<<<<<<< HEAD
-        /*
-         * Read in one IP address per line in the file.
-         */
-
-        gsize  ip_count = 0;
-        gsize  ip_count_v4 = 0;
-        gsize  ip_count_v4_block = 0;
-        gsize  ip_count_v6 = 0;
-        gsize  ip_count_v6_block = 0;
-=======
         /* Read in one IP address per line in the file. */
         size_t  ip_count = 0;
->>>>>>> upstream/develop
+        size_t  ip_count_v4 = 0;
+        size_t  ip_count_v4_block = 0;
+        size_t  ip_count_v6 = 0;
+        size_t  ip_count_v6_block = 0;
+        size_t  len;
 
 #define MAX_LINELENGTH  4096
         char  line[MAX_LINELENGTH];
+        char  *slash_pos;
+        int   cidr;
 
-<<<<<<< HEAD
-        gchar  line[MAX_LINELENGTH];
-        gchar  *slash_pos;
-        gint   cidr;
+        while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
+            struct cork_ip  addr;
 
-        while (fgets(line, MAX_LINELENGTH, stream) != NULL)
-        {
-            size_t  len = strlen(line);
+            /* Set the trailing /n to 0 to support ip address checking */
+            len = strlen(line);
             line[len-1] = 0;
 
-            /* 
-             * Check for a / indicating a cidr block. Turn it into a 
-             * null and point at the following character, extract cidr 
-             */
-            if ((slash_pos = strchr(line, '/'))) 
-            {
+            /* Check for a / indicating a CIDR block. Turn it into null and extract. */
+            if ((slash_pos = strchr(line, '/'))) {
                 *slash_pos = 0;
                 slash_pos++;
                 cidr = (int) strtol(slash_pos, (char **) NULL, 10);
             }
 
-            /*
-             * Reserve enough space for an IPv6 address.
-             */
-
-            guint32  addr[4];
-            int  rc;
-
-            /*
-             * Try to parse the line as an IPv4 address.  If that
-             * works, add it to the set.
-             */
-
-            rc = inet_pton(AF_INET, line, addr);
-            if (rc == 1)
-            {
-                ip_count++;
-                if (slash_pos) 
-                {
-                    ip_count_v4_block++;
-                    ipset_ipv4_add_network(&set, addr, cidr);
-                } 
-                else 
-                {
-                    ip_count_v4++;
-                    ipset_ipv4_add(&set, addr);
-                }
-                continue;
-            }
-
-            /*
-             * If that didn't work, try IPv6.
-             */
-
-            rc = inet_pton(AF_INET6, line, addr);
-            if (rc == 1)
-            {
-                ip_count++;
-                if (slash_pos) 
-                {
-                    ip_count_v6_block++;
-                    ipset_ipv6_add_network(&set, addr, cidr);
-                } 
-                else 
-                {
-                    ip_count_v6++;
-                    ipset_ipv6_add(&set, addr);
-                }
-                continue;
-=======
-        while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
-            struct cork_ip  addr;
-
-            size_t  len = strlen(line);
-            line[len-1] = 0;
-
             /* Try to parse the line as an IP address. */
             if (cork_ip_init(&addr, line) != 0) {
                 fprintf(stderr, "%s\n", cork_error_message());
                 exit(1);
->>>>>>> upstream/develop
             }
 
-            ipset_ip_add(&set, &addr);
+            /* Add to address to the ipset and update the counters */
+            (slash_pos == 0) ? ipset_ip_add(&set, &addr) : ipset_ip_add_network(&set, &addr, cidr);
+
             ip_count++;
+            if (addr.version == 4) {
+                (slash_pos == 0) ? ip_count_v4++ : ip_count_v4_block++;
+            }
+            else {
+                (slash_pos == 0) ? ip_count_v6++ : ip_count_v6_block++;
+            }
         }
 
         if (ferror(stream)) {
@@ -208,17 +148,11 @@ main(int argc, char **argv)
             exit(1);
         }
 
-<<<<<<< HEAD
-        fprintf(stderr, "Read %" G_GSIZE_FORMAT " IP address records from %s.\n (%" 
-                G_GSIZE_FORMAT " IPv4 addresses, %" G_GSIZE_FORMAT " IPv4 block%s, %" 
-		        G_GSIZE_FORMAT " IPv6 addresses, %" G_GSIZE_FORMAT " IPv6 block%s)\n",
-                ip_count, filename, ip_count_v4, ip_count_v4_block, 
-                (ip_count_v4_block == 1 ? "" : "s"), ip_count_v6, ip_count_v6_block, 
-                (ip_count_v6_block == 1 ? "" : "s"));
-=======
-        fprintf(stderr, "Read %zu IP addresses from %s.\n",
-                ip_count, filename);
->>>>>>> upstream/develop
+        fprintf(stderr, "Read %zu IP address records from %s.\n", ip_count, filename);
+        fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4, 
+                ip_count_v4_block, (ip_count_v4_block == 1 ? "" : "s")); 
+        fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6, 
+                ip_count_v6_block, (ip_count_v6_block == 1 ? "" : "s"));
 
         /* Free the streams before opening the next file. */
         if (close_stream) {
