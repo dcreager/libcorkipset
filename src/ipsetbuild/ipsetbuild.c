@@ -106,7 +106,7 @@ main(int argc, char **argv)
 #define MAX_LINELENGTH  4096
         char  line[MAX_LINELENGTH];
         char  *slash_pos;
-        unsigned int   cidr;
+        unsigned int  cidr;
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
@@ -132,7 +132,6 @@ main(int argc, char **argv)
             }
 
             /* Add to address to the ipset and update the counters */
-            ip_count++;
             if (slash_pos == NULL) {
                 ipset_ip_add(&set, &addr);
                 if (addr.version == 4) {
@@ -141,13 +140,20 @@ main(int argc, char **argv)
                     ip_count_v6++;
                 }
             } else {
-                ipset_ip_add_network(&set, &addr, cidr);
+                ipset_ip_add_network(&set, &addr, cidr); 
+                if (cork_error_occurred()) {
+                    fprintf(stderr, "* Skipping %s/%u: %s\n", 
+                            line, cidr, cork_error_message());
+                    cork_error_clear();
+                    continue;
+                }
                 if (addr.version == 4) {
                     ip_count_v4_block++;
                 } else {
                     ip_count_v6_block++;
                 }
             }
+            ip_count++;
         }
 
         if (ferror(stream)) {
