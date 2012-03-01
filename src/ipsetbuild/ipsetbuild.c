@@ -8,6 +8,7 @@
  * ----------------------------------------------------------------------
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -26,6 +27,18 @@ static struct option longopts[] = {
     { "output", required_argument, NULL, 'o' },
     { NULL, 0, NULL, 0 }
 };
+
+static bool
+is_string_whitespace(const char *str)
+{
+    while (*str) {
+        if (isspace(*str) == 0) {
+            return false;
+        }
+        str++;
+    }
+    return true;
+}
 
 static void
 usage(void)
@@ -110,6 +123,12 @@ main(int argc, char **argv)
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
+
+            /* Skip empty lines and comments. Comments start with '#'
+             * in the first column. */
+            if ((line[0] == '#') || (is_string_whitespace(line))) {
+                continue;
+            }
 
             /* Chomp the trailing newline so we don't confuse our IP
              * address parser. */
