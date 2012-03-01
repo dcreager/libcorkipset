@@ -142,7 +142,8 @@ main(int argc, char **argv)
             } else {
                 ipset_ip_add_network(&set, &addr, cidr); 
                 if (cork_error_occurred()) {
-                    fprintf(stderr, "* Skipping %s/%u: %s\n", line, cidr, cork_error_message());
+                    fprintf(stderr, "* Skipping %s/%u: %s\n", 
+                            line, cidr, cork_error_message());
                     cork_error_clear();
                     continue;
                 }
