@@ -36,17 +36,24 @@ one_test(long num_elements)
     long  i;
     size_t  size;
     double  size_per_element;
+    clock_t  start, end;
+    double  cpu_time_used;
 
+    start = clock();
     ipset_init(&set);
     for (i = 0; i < num_elements; i++) {
         struct cork_ipv4  ip;
         random_ip(&ip);
         ipset_ipv4_add(&set, &ip);
     }
+    end = clock();
 
     size = ipset_memory_size(&set);
     size_per_element = ((double) size) / num_elements;
-    fprintf(stdout, "%lu %zu %.3f\n", num_elements, size, size_per_element);
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+    fprintf(stdout, "%9lu%15zu%12.3lf%18.6lf\n",
+            num_elements, size, size_per_element, cpu_time_used);
 
     ipset_done(&set);
 }
@@ -73,6 +80,8 @@ main(int argc, const char **argv)
     ipset_init_library();
     srandom(time(NULL));
 
+    fprintf(stdout, "%9s%15s%12s%18s\n",
+            "elements", "bytes", "bytes_per", "cpu_time");
     for (i = 0; i < num_tests; i++) {
         one_test(num_elements);
     }
