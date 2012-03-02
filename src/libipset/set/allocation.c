@@ -36,7 +36,7 @@ ipset_new(void)
 void
 ipset_done(struct ip_set *set)
 {
-    /* nothing to do */
+    ipset_node_decref(ipset_cache, set->set_bdd);
 }
 
 

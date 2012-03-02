@@ -35,4 +35,3 @@
 
 /* Now include all of the templates. */
 #include "inspection-template.c.in"
-#include "modify-template.c.in"

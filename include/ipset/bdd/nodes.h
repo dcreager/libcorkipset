@@ -61,6 +61,11 @@ enum ipset_node_type {
  */
 #define ipset_node_get_type(node_id)  ((node_id) & 0x01)
 
+#define IPSET_NODE_ID_FORMAT  "%s%u"
+#define IPSET_NODE_ID_VALUES(node_id) \
+    (ipset_node_get_type((node_id)) == IPSET_NONTERMINAL_NODE? "s": ""), \
+    ((node_id) >> 1)
+
 
 /*-----------------------------------------------------------------------
  * Terminal nodes
@@ -95,8 +100,8 @@ enum ipset_node_type {
  * reduced; that is handled by the node_cache class.
  */
 struct ipset_node {
-    /** The ID of this node. */
-    ipset_node_id  id;
+    /** The reference count for this node. */
+    unsigned int  refcount;
     /** The variable that this node represents. */
     ipset_variable  variable;
     /** The subtree node for when the variable is false. */
@@ -148,12 +153,6 @@ struct ipset_node_cache {
     ipset_value  largest_index;
     /** A cache of the nonterminal nodes, keyed by their contents. */
     struct cork_hash_table  node_cache;
-    /** A cache of the results of the AND operation. */
-    struct cork_hash_table  and_cache;
-    /** A cache of the results of the OR operation. */
-    struct cork_hash_table  or_cache;
-    /** A cache of the results of the ITE operation. */
-    struct cork_hash_table  ite_cache;
 };
 
 /**
@@ -198,11 +197,20 @@ ipset_node_cache_free(struct ipset_node_cache *cache);
  * Create a new nonterminal node with the given contents, returning
  * its ID.  This function ensures that there is only one node with the
  * given contents in this cache.
+ *
+ * Steals references to low and high.
  */
 ipset_node_id
 ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
                              ipset_variable variable,
                              ipset_node_id low, ipset_node_id high);
+
+
+ipset_node_id
+ipset_node_incref(struct ipset_node_cache *cache, ipset_node_id node);
+
+void
+ipset_node_decref(struct ipset_node_cache *cache, ipset_node_id node);
 
 
 /**
@@ -255,33 +263,6 @@ ipset_node_cache_save_dot(struct cork_stream_consumer *stream,
  */
 
 /**
- * Calculate the logical AND (∧) of two BDDs.
- */
-ipset_node_id
-ipset_node_cache_and(struct ipset_node_cache *cache,
-                     ipset_node_id lhs, ipset_node_id rhs);
-
-/**
- * Calculate the logical OR (∨) of two BDDs.
- */
-ipset_node_id
-ipset_node_cache_or(struct ipset_node_cache *cache,
-                    ipset_node_id lhs, ipset_node_id rhs);
-
-/**
- * Calculate the IF-THEN-ELSE of three BDDs.  The first BDD should
- * only have 0 and 1 (FALSE and TRUE) in its range.
- */
-ipset_node_id
-ipset_node_cache_ite(struct ipset_node_cache *cache,
-                     ipset_node_id f, ipset_node_id g, ipset_node_id h);
-
-
-/*-----------------------------------------------------------------------
- * Evaluating BDDs
- */
-
-/**
  * A function that provides the value for each variable in a BDD.
  */
 typedef bool
@@ -311,6 +292,15 @@ ipset_value
 ipset_node_evaluate(const struct ipset_node_cache *cache, ipset_node_id node,
                     ipset_assignment_func assignment,
                     const void *user_data);
+
+/**
+ * Add an assignment to the BDD.
+ */
+ipset_node_id
+ipset_node_insert(struct ipset_node_cache *cache, ipset_node_id node,
+                  ipset_assignment_func assignment,
+                  const void *user_data, ipset_variable variable_count,
+                  ipset_value value);
 
 
 /*-----------------------------------------------------------------------

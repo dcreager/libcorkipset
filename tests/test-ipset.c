@@ -17,6 +17,9 @@
 #include "ipset/ipset.h"
 
 
+#define DESCRIBE_TEST  fprintf(stderr, "---\n%s\n", __func__)
+
+
 /*-----------------------------------------------------------------------
  * Temporary file helper
  */
@@ -93,6 +96,7 @@ test_round_trip(struct ip_set *set)
 
 START_TEST(test_set_starts_empty)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
 
     ipset_init(&set);
@@ -104,6 +108,7 @@ END_TEST
 
 START_TEST(test_empty_sets_equal)
 {
+    DESCRIBE_TEST;
     struct ip_set  set1, set2;
 
     ipset_init(&set1);
@@ -117,6 +122,7 @@ END_TEST
 
 START_TEST(test_store_empty)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
 
     ipset_init(&set);
@@ -132,6 +138,7 @@ END_TEST
 
 START_TEST(test_ipv4_insert_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -147,6 +154,7 @@ END_TEST
 
 START_TEST(test_ipv4_insert_network_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -162,6 +170,7 @@ END_TEST
 
 START_TEST(test_ipv4_bad_cidr_prefix_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -170,12 +179,14 @@ START_TEST(test_ipv4_bad_cidr_prefix_01)
     ipset_ipv4_add_network(&set, &addr, 0);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
+    cork_error_clear();
     ipset_done(&set);
 }
 END_TEST
 
 START_TEST(test_ipv4_bad_cidr_prefix_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -184,12 +195,14 @@ START_TEST(test_ipv4_bad_cidr_prefix_02)
     ipset_ipv4_add_network(&set, &addr, 33);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
+    cork_error_clear();
     ipset_done(&set);
 }
 END_TEST
 
 START_TEST(test_ipv4_contains_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -205,6 +218,7 @@ END_TEST
 
 START_TEST(test_ipv4_contains_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
     struct cork_ip  ip;
@@ -222,6 +236,7 @@ END_TEST
 
 START_TEST(test_ipv4_network_contains_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -237,6 +252,7 @@ END_TEST
 
 START_TEST(test_ipv4_equality_1)
 {
+    DESCRIBE_TEST;
     struct ip_set  set1, set2;
     struct cork_ipv4  addr;
 
@@ -255,12 +271,61 @@ START_TEST(test_ipv4_equality_1)
 }
 END_TEST
 
-START_TEST(test_ipv4_inequality_1)
+START_TEST(test_ipv4_equality_2)
 {
+    DESCRIBE_TEST;
     struct ip_set  set1, set2;
     struct cork_ipv4  addr;
 
-    printf("------------\n");
+    ipset_init(&set1);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipset_ipv4_add(&set1, &addr);
+    ipset_ipv4_add_network(&set1, &addr, 24);
+
+    ipset_init(&set2);
+    ipset_ipv4_add_network(&set2, &addr, 24);
+
+    fail_unless(ipset_is_equal(&set1, &set2),
+                "Expected {x} == {x}");
+
+    ipset_done(&set1);
+    ipset_done(&set2);
+}
+END_TEST
+
+START_TEST(test_ipv4_equality_3)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set1, set2;
+    struct cork_ipv4  addr;
+
+    ipset_init(&set1);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipset_ipv4_add(&set1, &addr);
+    ipset_ipv4_add_network(&set1, &addr, 24);
+    cork_ipv4_init(&addr, "192.168.2.0");
+    ipset_ipv4_add(&set1, &addr);
+
+    ipset_init(&set2);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipset_ipv4_add_network(&set2, &addr, 24);
+    cork_ipv4_init(&addr, "192.168.2.0");
+    ipset_ipv4_add(&set2, &addr);
+
+    fail_unless(ipset_is_equal(&set1, &set2),
+                "Expected {x} == {x}");
+
+    ipset_done(&set1);
+    ipset_done(&set2);
+}
+END_TEST
+
+START_TEST(test_ipv4_inequality_1)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set1, set2;
+    struct cork_ipv4  addr;
+
     ipset_init(&set1);
     cork_ipv4_init(&addr, "192.168.1.100");
     ipset_ipv4_add(&set1, &addr);
@@ -270,7 +335,6 @@ START_TEST(test_ipv4_inequality_1)
 
     fail_unless(!ipset_is_equal(&set1, &set2),
                 "Expected {x} != {x}");
-    printf("------------\n");
 
     ipset_done(&set1);
     ipset_done(&set2);
@@ -279,6 +343,7 @@ END_TEST
 
 START_TEST(test_ipv4_memory_size_1)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
     size_t  expected, actual;
@@ -300,6 +365,7 @@ END_TEST
 
 START_TEST(test_ipv4_memory_size_2)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
     size_t  expected, actual;
@@ -321,6 +387,7 @@ END_TEST
 
 START_TEST(test_ipv4_store_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -334,6 +401,7 @@ END_TEST
 
 START_TEST(test_ipv4_store_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -347,6 +415,7 @@ END_TEST
 
 START_TEST(test_ipv4_store_03)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv4  addr;
 
@@ -369,6 +438,7 @@ END_TEST
 
 START_TEST(test_ipv6_insert_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -384,6 +454,7 @@ END_TEST
 
 START_TEST(test_ipv6_insert_network_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -399,6 +470,7 @@ END_TEST
 
 START_TEST(test_ipv6_bad_cidr_prefix_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -407,12 +479,14 @@ START_TEST(test_ipv6_bad_cidr_prefix_01)
     ipset_ipv6_add_network(&set, &addr, 0);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
+    cork_error_clear();
     ipset_done(&set);
 }
 END_TEST
 
 START_TEST(test_ipv6_bad_cidr_prefix_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -421,12 +495,14 @@ START_TEST(test_ipv6_bad_cidr_prefix_02)
     ipset_ipv6_add_network(&set, &addr, 129);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
+    cork_error_clear();
     ipset_done(&set);
 }
 END_TEST
 
 START_TEST(test_ipv6_contains_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -442,6 +518,7 @@ END_TEST
 
 START_TEST(test_ipv6_contains_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
     struct cork_ip  ip;
@@ -459,6 +536,7 @@ END_TEST
 
 START_TEST(test_ipv6_network_contains_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -474,6 +552,7 @@ END_TEST
 
 START_TEST(test_ipv6_equality_1)
 {
+    DESCRIBE_TEST;
     struct ip_set  set1, set2;
     struct cork_ipv6  addr;
 
@@ -492,8 +571,58 @@ START_TEST(test_ipv6_equality_1)
 }
 END_TEST
 
+START_TEST(test_ipv6_equality_2)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set1, set2;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set1);
+    cork_ipv6_init(&addr, "fe80::");
+    ipset_ipv6_add(&set1, &addr);
+    ipset_ipv6_add_network(&set1, &addr, 64);
+
+    ipset_init(&set2);
+    ipset_ipv6_add_network(&set2, &addr, 64);
+
+    fail_unless(ipset_is_equal(&set1, &set2),
+                "Expected {x} == {x}");
+
+    ipset_done(&set1);
+    ipset_done(&set2);
+}
+END_TEST
+
+START_TEST(test_ipv6_equality_3)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set1, set2;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set1);
+    cork_ipv6_init(&addr, "fe80::");
+    ipset_ipv6_add(&set1, &addr);
+    ipset_ipv6_add_network(&set1, &addr, 64);
+    cork_ipv6_init(&addr, "fe80:1::");
+    ipset_ipv6_add(&set1, &addr);
+
+    ipset_init(&set2);
+    cork_ipv6_init(&addr, "fe80::");
+    ipset_ipv6_add_network(&set2, &addr, 64);
+    cork_ipv6_init(&addr, "fe80:1::");
+    ipset_ipv6_add(&set2, &addr);
+
+    fail_unless(ipset_is_equal(&set1, &set2),
+                "Expected {x} == {x}");
+
+    ipset_done(&set1);
+    ipset_done(&set2);
+}
+END_TEST
+
 START_TEST(test_ipv6_inequality_1)
 {
+    DESCRIBE_TEST;
     struct ip_set  set1, set2;
     struct cork_ipv6  addr;
 
@@ -514,6 +643,7 @@ END_TEST
 
 START_TEST(test_ipv6_memory_size_1)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
     size_t  expected, actual;
@@ -535,6 +665,7 @@ END_TEST
 
 START_TEST(test_ipv6_memory_size_2)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
     size_t  expected, actual;
@@ -556,6 +687,7 @@ END_TEST
 
 START_TEST(test_ipv6_store_01)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -569,6 +701,7 @@ END_TEST
 
 START_TEST(test_ipv6_store_02)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -582,6 +715,7 @@ END_TEST
 
 START_TEST(test_ipv6_store_03)
 {
+    DESCRIBE_TEST;
     struct ip_set  set;
     struct cork_ipv6  addr;
 
@@ -622,6 +756,8 @@ ipset_suite()
     tcase_add_test(tc_ipv4, test_ipv4_contains_02);
     tcase_add_test(tc_ipv4, test_ipv4_network_contains_01);
     tcase_add_test(tc_ipv4, test_ipv4_equality_1);
+    tcase_add_test(tc_ipv4, test_ipv4_equality_2);
+    tcase_add_test(tc_ipv4, test_ipv4_equality_3);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_1);
     tcase_add_test(tc_ipv4, test_ipv4_memory_size_1);
     tcase_add_test(tc_ipv4, test_ipv4_memory_size_2);
@@ -639,6 +775,8 @@ ipset_suite()
     tcase_add_test(tc_ipv6, test_ipv6_contains_02);
     tcase_add_test(tc_ipv6, test_ipv6_network_contains_01);
     tcase_add_test(tc_ipv6, test_ipv6_equality_1);
+    tcase_add_test(tc_ipv6, test_ipv6_equality_2);
+    tcase_add_test(tc_ipv6, test_ipv6_equality_3);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_1);
     tcase_add_test(tc_ipv6, test_ipv6_memory_size_1);
     tcase_add_test(tc_ipv6, test_ipv6_memory_size_2);

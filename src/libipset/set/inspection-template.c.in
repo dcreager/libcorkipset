@@ -12,6 +12,7 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/bits.h"
+#include "ipset/errors.h"
 #include "ipset/ipset.h"
 #include "../internal.h"
 
@@ -51,4 +52,42 @@ IPSET_PRENAME(contains)(const struct ip_set *set, CORK_IP *elem)
 {
     return ipset_node_evaluate
         (ipset_cache, set->set_bdd, IPSET_NAME(assignment), elem);
+}
+
+
+bool
+IPSET_NAME(add_network)(struct ip_set *set, CORK_IP *elem,
+                        unsigned int cidr_prefix)
+{
+    /* Special case — the BDD for a netmask that's out of range never
+     * evaluates to true. */
+    if ((cidr_prefix == 0) || (cidr_prefix > IP_BIT_SIZE)) {
+        cork_error_set
+            (IPSET_ERROR, IPSET_PARSE_ERROR,
+             "CIDR block %u out of range [0..%u]", cidr_prefix, IP_BIT_SIZE);
+        return false;
+    }
+
+    ipset_node_id  new_bdd =
+        ipset_node_insert
+        (ipset_cache, set->set_bdd,
+         IPSET_NAME(assignment), elem, cidr_prefix + 1, 1);
+    bool  result = (new_bdd == set->set_bdd);
+    ipset_node_decref(ipset_cache, set->set_bdd);
+    set->set_bdd = new_bdd;
+    return result;
+}
+
+
+bool
+IPSET_NAME(add)(struct ip_set *set, CORK_IP *elem)
+{
+    ipset_node_id  new_bdd =
+        ipset_node_insert
+        (ipset_cache, set->set_bdd,
+         IPSET_NAME(assignment), elem, IP_BIT_SIZE + 1, 1);
+    bool  result = (new_bdd == set->set_bdd);
+    ipset_node_decref(ipset_cache, set->set_bdd);
+    set->set_bdd = new_bdd;
+    return result;
 }

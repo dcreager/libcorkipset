@@ -37,7 +37,7 @@ ipmap_new(int default_value)
 void
 ipmap_done(struct ip_map *map)
 {
-    /* nothing to do */
+    ipset_node_decref(ipset_cache, map->map_bdd);
 }
 
 
