@@ -17,6 +17,7 @@
 #include <libcork/helpers/errors.h>
 
 #include "ipset/bdd/nodes.h"
+#include "ipset/errors.h"
 #include "ipset/logging.h"
 
 

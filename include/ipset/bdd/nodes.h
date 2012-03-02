@@ -19,19 +19,6 @@
 
 
 /*-----------------------------------------------------------------------
- * Error reporting
- */
-
-/* Hash of "ipset.h" */
-#define IPSET_ERROR  0xf2000181
-
-enum ipset_error {
-    IPSET_IO_ERROR,
-    IPSET_PARSE_ERROR
-};
-
-
-/*-----------------------------------------------------------------------
  * Bit arrays
  */
 
