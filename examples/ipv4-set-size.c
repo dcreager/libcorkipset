@@ -24,7 +24,7 @@ random_ip(struct cork_ipv4 *ip)
 
     for (i = 0; i < sizeof(struct cork_ipv4); i++) {
         uint8_t  random_byte = random() & 0xff;
-        ip->u8[i] = random_byte;
+        ip->_.u8[i] = random_byte;
     }
 }
 
