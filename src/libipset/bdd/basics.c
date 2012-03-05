@@ -59,12 +59,20 @@ ipset_node_comparator(const void *key1, const void *key2)
 }
 
 
+/* The free list in an ipset_node_cache is represented by a
+ * singly-linked list of indices into the chunk array.  Since the
+ * ipset_node instance is unused for nodes in the free list, we reuse
+ * the refcount field to store the "next" index. */
+
+#define IPSET_NULL_INDEX ((ipset_variable) -1)
+
 struct ipset_node_cache *
 ipset_node_cache_new()
 {
     struct ipset_node_cache  *cache = cork_new(struct ipset_node_cache);
     cork_array_init(&cache->chunks);
     cache->largest_index = 0;
+    cache->free_list = IPSET_NULL_INDEX;
     cork_hash_table_init
         (&cache->node_cache, 0, ipset_node_hasher, ipset_node_comparator);
     return cache;
@@ -89,18 +97,28 @@ ipset_node_cache_free(struct ipset_node_cache *cache)
 static ipset_value
 ipset_node_cache_alloc_node(struct ipset_node_cache *cache)
 {
-    ipset_value  next_index = cache->largest_index++;
-    ipset_value  chunk_index = next_index >> IPSET_BDD_NODE_CACHE_BIT_SIZE;
-    if (chunk_index >= cork_array_size(&cache->chunks)) {
-        /* We've filled up all of the existing chunks, and need to
-         * create a new one. */
-        DEBUG("        (allocating chunk %zu)",
-              cork_array_size(&cache->chunks));
-        struct ipset_node  *new_chunk =
-            cork_calloc(IPSET_BDD_NODE_CACHE_SIZE, sizeof(struct ipset_node));
-        cork_array_append(&cache->chunks, new_chunk);
+    if (cache->free_list == IPSET_NULL_INDEX) {
+        /* Nothing in the free list; need to allocate a new node. */
+        ipset_value  next_index = cache->largest_index++;
+        ipset_value  chunk_index = next_index >> IPSET_BDD_NODE_CACHE_BIT_SIZE;
+        if (chunk_index >= cork_array_size(&cache->chunks)) {
+            /* We've filled up all of the existing chunks, and need to
+             * create a new one. */
+            DEBUG("        (allocating chunk %zu)",
+                  cork_array_size(&cache->chunks));
+            struct ipset_node  *new_chunk = cork_calloc
+                (IPSET_BDD_NODE_CACHE_SIZE, sizeof(struct ipset_node));
+            cork_array_append(&cache->chunks, new_chunk);
+        }
+        return next_index;
+    } else {
+        /* Reuse a recently freed node. */
+        ipset_value  next_index = cache->free_list;
+        struct ipset_node  *node =
+            ipset_node_cache_get_nonterminal_by_index(cache, next_index);
+        cache->free_list = node->refcount;
+        return next_index;
     }
-    return next_index;
 }
 
 ipset_node_id
@@ -130,7 +148,10 @@ ipset_node_decref(struct ipset_node_cache *cache, ipset_node_id node_id)
             ipset_node_decref(cache, node->low);
             ipset_node_decref(cache, node->high);
             cork_hash_table_delete(&cache->node_cache, node, NULL, NULL);
-            /* TODO: Free the node */
+
+            /* Add the node to the free list */
+            node->refcount = cache->free_list;
+            cache->free_list = ipset_nonterminal_value(node_id);
         }
     }
 }

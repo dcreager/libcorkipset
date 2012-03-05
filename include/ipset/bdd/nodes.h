@@ -151,6 +151,8 @@ struct ipset_node_cache {
     cork_array(struct ipset_node *)  chunks;
     /** The largest nonterminal index that has been handed out. */
     ipset_value  largest_index;
+    /** The index of the first node in the free list. */
+    ipset_value  free_list;
     /** A cache of the nonterminal nodes, keyed by their contents. */
     struct cork_hash_table  node_cache;
 };
@@ -206,9 +208,18 @@ ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
                              ipset_node_id low, ipset_node_id high);
 
 
+/**
+ * Increment the reference count of a nonterminal node.  (This is a
+ * no-op for terminal nodes.)
+ */
 ipset_node_id
 ipset_node_incref(struct ipset_node_cache *cache, ipset_node_id node);
 
+/**
+ * Decrement the reference count of a nonterminal node.  If the
+ * reference count reaches 0, the storage for the node will be
+ * reclaimed.  (This is a no-op for terminal nodes.)
+ */
 void
 ipset_node_decref(struct ipset_node_cache *cache, ipset_node_id node);
 
