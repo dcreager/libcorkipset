@@ -22,9 +22,11 @@
 
 
 static char  *output_filename = NULL;
+static bool  loose_cidr = false;
 
 static struct option longopts[] = {
     { "output", required_argument, NULL, 'o' },
+    { "loose-cidr", 0, NULL, 'l' },
     { NULL, 0, NULL, 0 }
 };
 
@@ -44,7 +46,7 @@ static void
 usage(void)
 {
     fprintf(stderr,
-            "Usage: ipsetbuild [--output=<output file>]\n"
+            "Usage: ipsetbuild [--output=<output file>] [--loose-cidr]\n"
             "                  <IP file>\n");
 }
 
@@ -57,10 +59,14 @@ main(int argc, char **argv)
     /* Parse the command-line options. */
 
     int  ch;
-    while ((ch = getopt_long(argc, argv, "o:", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "o:l", longopts, NULL)) != -1) {
         switch (ch) {
             case 'o':
                 output_filename = optarg;
+                break;
+
+            case 'l':
+                loose_cidr = true;
                 break;
 
             default:
@@ -159,6 +165,15 @@ main(int argc, char **argv)
                     ip_count_v6++;
                 }
             } else {
+                /* If loose-cidr was not a command line option, then check the
+                 * alignment of the IP address with the CIDR block. */
+                if (!loose_cidr) {
+                    if (!cork_ip_is_valid_network(&addr, cidr)) {
+                        fprintf(stderr, "* Skipping %s/%u: Bad CIDR block.\n",
+                                line, cidr);
+                        continue;
+                    }
+                }
                 ipset_ip_add_network(&set, &addr, cidr);
                 if (cork_error_occurred()) {
                     fprintf(stderr, "* Skipping %s/%u: %s\n",
