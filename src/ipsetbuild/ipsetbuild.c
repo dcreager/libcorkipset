@@ -168,7 +168,7 @@ main(int argc, char **argv)
                 /* If loose-cidr was not a command line option, then check the
                  * alignment of the IP address with the CIDR block. */
                 if (!loose_cidr) {
-                    if (cork_ip_is_valid_network(&addr, cidr) == false) {
+                    if (!cork_ip_is_valid_network(&addr, cidr)) {
                         fprintf(stderr, "* Skipping %s/%u: Bad CIDR block.\n",
                                 line, cidr);
                         continue;
