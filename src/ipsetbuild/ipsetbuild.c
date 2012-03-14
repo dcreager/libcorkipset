@@ -25,6 +25,7 @@ static char  *output_filename = NULL;
 static bool  loose_cidr = false;
 
 static struct option longopts[] = {
+    { "help", no_argument, NULL, 'h' },
     { "output", required_argument, NULL, 'o' },
     { "loose-cidr", 0, NULL, 'l' },
     { NULL, 0, NULL, 0 }
@@ -42,13 +43,47 @@ is_string_whitespace(const char *str)
     return true;
 }
 
-static void
-usage(void)
-{
-    fprintf(stderr,
-            "Usage: ipsetbuild [--output=<output file>] [--loose-cidr]\n"
-            "                  <IP file>\n");
-}
+#define USAGE \
+"Usage: ipsetbuild [options] [<input file>...]\n"
+
+#define FULL_USAGE \
+USAGE \
+"\n" \
+"Constructs a binary IP set file from a list of IP addresses and networks.\n" \
+"\n" \
+"Options:\n" \
+"  <input file>...\n" \
+"    An optional list of text files that contain the IP addresses and\n" \
+"    networks to add to the set.  If no files are given, the addresses\n" \
+"    are read from standard input.\n" \
+"  --output=<filename>, -o <filename>\n" \
+"    Writes the binary IP set file to <filename>.  If this option isn't\n" \
+"    given, then the binary set will be written to standard output.\n" \
+"  --loose-cidr, -l\n" \
+"    Be more lenient about the address portion of any CIDR network blocks\n" \
+"    found in the input file.\n" \
+"  --help\n" \
+"    Display this help and exit.\n" \
+"\n" \
+"Input format:\n" \
+"  Each input file must contain one IP address or network per line.  Lines\n" \
+"  beginning with a \"#\" are considered comments and are ignored.  Each\n" \
+"  IP address must have one of the following formats:\n" \
+"\n" \
+"    x.x.x.x\n" \
+"    x.x.x.x/cidr\n" \
+"    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx\n" \
+"    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/cidr\n" \
+"\n" \
+"    The first two are for IPv4 addresses and networks; the second two for\n" \
+"    IPv6 addresses and networks.  For IPv6 addresses, you can use the \"::\"\n" \
+"    shorthand notation to collapse consecutive \"0\" portions.\n" \
+"\n" \
+"    If an address contains a \"/cidr\" suffix, then the entire CIDR network\n" \
+"    of addresses will be added to the set.  You must ensure that the low-\n" \
+"    order bits of the address are set to 0; if not, we'll raise an error.\n" \
+"    (If you pass in the \"--loose-cidr\" option, we won't perform this\n" \
+"    sanity check.)\n"
 
 
 int
@@ -59,18 +94,22 @@ main(int argc, char **argv)
     /* Parse the command-line options. */
 
     int  ch;
-    while ((ch = getopt_long(argc, argv, "o:l", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "hlo:", longopts, NULL)) != -1) {
         switch (ch) {
-            case 'o':
-                output_filename = optarg;
-                break;
+            case 'h':
+                fprintf(stdout, FULL_USAGE);
+                exit(0);
 
             case 'l':
                 loose_cidr = true;
                 break;
 
+            case 'o':
+                output_filename = optarg;
+                break;
+
             default:
-                usage();
+                fprintf(stderr, USAGE);
                 exit(1);
         }
     }
@@ -81,9 +120,9 @@ main(int argc, char **argv)
     /* Verify that the user specified at least one SiLK file to read. */
 
     if (argc == 0) {
-        fprintf
-            (stderr, "ERROR: You need to specify at least one input file.\n");
-        usage();
+        fprintf(stderr,
+                "ipsetbuild: You need to specify at least one input file.\n");
+        fprintf(stderr, USAGE);
         exit(1);
     }
 

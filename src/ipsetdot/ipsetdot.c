@@ -26,19 +26,37 @@ static char  *output_filename = "-";
 
 
 static struct option longopts[] = {
+    { "help", no_argument, NULL, 'h' },
     { "input", required_argument, NULL, 'i' },
     { "output", required_argument, NULL, 'o' },
     { NULL, 0, NULL, 0 }
 };
 
-static void
-usage(void)
-{
-    fprintf(stderr,
-            "Usage: ipsetdot [--input=<input file>]\n"
-            "                [--output=<output file>]\n"
-            "                <IP file>\n");
-}
+#define USAGE \
+"Usage: ipsetdot [options]\n"
+
+#define FULL_USAGE \
+USAGE \
+"\n" \
+"Creates a GraphViz file showing the BDD structure of an IP set.\n" \
+"\n" \
+"Options:\n" \
+"  --input=<filename>, -i <filename>\n" \
+"    The binary set file to read.  If this option isn't given, we'll read\n" \
+"    set from standard input.\n" \
+"  --output=<filename>, -o <filename>\n" \
+"    Writes the GraphViz representation of the binary IP set file to\n" \
+"    <filename>.  If this option isn't given, then the contents will be\n" \
+"    written to standard output.\n" \
+"  --help\n" \
+"    Display this help and exit.\n" \
+"\n" \
+"Output format:\n" \
+"  Internally, IP sets are represented by a binary-decision diagram (BDD).\n" \
+"  The ipsetdot program can be used to produce a GraphViz file that describes\n" \
+"  the internal BDD structure for an IP set.  The GraphViz representation can\n" \
+"  then be passed in to GraphViz's \"dot\" program, for instance, to generate\n" \
+"  an image of the BDD's graph structure.\n"
 
 
 int
@@ -49,8 +67,12 @@ main(int argc, char **argv)
     /* Parse the command-line options. */
 
     int  ch;
-    while ((ch = getopt_long(argc, argv, "i:o:", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "hi:o:", longopts, NULL)) != -1) {
         switch (ch) {
+            case 'h':
+                fprintf(stdout, FULL_USAGE);
+                exit(0);
+
             case 'i':
                 input_filename = optarg;
                 break;
@@ -60,7 +82,7 @@ main(int argc, char **argv)
                 break;
 
             default:
-                usage();
+                fprintf(stderr, USAGE);
                 exit(1);
         }
     }
