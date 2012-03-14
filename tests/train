@@ -33,7 +33,7 @@ fi
 
 echo "Saving ${TEST_NAME} stdout and stderr..."
 
-${COMMAND} < ${IN_FILE} \
+sh -c "${COMMAND}" < ${IN_FILE} \
     > "${SPEC_DIR}/out" 2> "${SPEC_DIR}/err"
 
 echo ""

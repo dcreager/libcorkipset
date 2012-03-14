@@ -34,7 +34,7 @@ else
 fi
 
 mkdir -p results
-${COMMAND} < ${IN_FILE} \
+sh -c "${COMMAND}" < ${IN_FILE} \
     > results/${TEST_NAME}.out 2> results/${TEST_NAME}.err
 
 GOOD=1

@@ -268,130 +268,188 @@ ipset_node_evaluate(const struct ipset_node_cache *cache, ipset_node_id node_id,
 }
 
 
+/* A “fake” BDD node given by an assignment. */
+struct ipset_fake_node {
+    ipset_variable  current_var;
+    ipset_variable  var_count;
+    ipset_assignment_func  assignment;
+    const void  *user_data;
+    ipset_value  value;
+};
+
+/* We add elements to a set using the logical or (||) operator:
+ *
+ *   new_set = new_element || old_set
+ *
+ * (This is the short-circuit ||, so new_element's value takes
+ * precedence.)
+ *
+ * The below is a straight copy of the standard binary APPLY from the
+ * BDD literature, but without the caching of the results.  And also
+ * with the wrinkle that the LHS argument to ITE (i.e., new_element) is
+ * given by an assignment, and not by a BDD node.  (This lets us skip
+ * constructing the BDD for the assignment, saving us a few cycles.)
+ */
+
 static ipset_node_id
-ipset_node_create_nonterminals(struct ipset_node_cache *cache,
-                               ipset_node_id node,
-                               ipset_assignment_func assignment,
-                               const void *user_data, ipset_variable start,
-                               ipset_variable finish, ipset_value value)
+ipset_apply_or(struct ipset_node_cache *cache, struct ipset_fake_node *lhs,
+               ipset_node_id rhs);
+
+static ipset_node_id
+recurse_left(struct ipset_node_cache *cache, struct ipset_fake_node *lhs,
+             ipset_node_id rhs)
 {
-    ipset_variable  i;
-    ipset_node_id  suffix_root;
+    ipset_node_id  result_low;
+    ipset_node_id  result_high;
 
-    suffix_root = ipset_terminal_node_id(value);
-    DEBUG("[%3u]   Creating new terminal = %u", start, value);
-    DEBUG("[%3u]   Adding nonterminals for bits %u-%u", start, start, finish-1);
-
-    for (i = finish; i-- > start; ) {
-        ipset_node_id  low;
-        ipset_node_id  high;
-
-        if (assignment(user_data, i)) {
-            /* Bit is set in key, so the high branch should
-             * point towards our new terminal. */
-            low = ipset_node_incref(cache, node);
-            high = suffix_root;
-        } else {
-            /* Bit is NOT set in key, so the low branch should
-             * point towards our new terminal. */
-            low = suffix_root;
-            high = ipset_node_incref(cache, node);
-        }
-        suffix_root = ipset_node_cache_nonterminal(cache, i, low, high);
-        DEBUG("[%3u]   Creating nonterminal(x%u? "
-                IPSET_NODE_ID_FORMAT ": " IPSET_NODE_ID_FORMAT
-                ") => " IPSET_NODE_ID_FORMAT,
-                i, i,
-                IPSET_NODE_ID_VALUES(high), IPSET_NODE_ID_VALUES(low),
-                IPSET_NODE_ID_VALUES(suffix_root));
+    if (lhs->assignment(lhs->user_data, lhs->current_var)) {
+        /* Since this bit is set in the assignment, the LHS's high
+         * branch is a true recursion, and its low branch points at the
+         * 0 terminal. */
+        DEBUG("[%3u]   x[%u] is set", lhs->current_var, lhs->current_var);
+        DEBUG("[%3u]   Recursing high", lhs->current_var);
+        lhs->current_var++;
+        result_high = ipset_apply_or(cache, lhs, rhs);
+        lhs->current_var--;
+        DEBUG("[%3u]   Back from high recursion", lhs->current_var);
+        result_low = ipset_node_incref(cache, rhs);
+    } else {
+        /* and vice versa when the bit is unset */
+        DEBUG("[%3u]   x[%u] is not set", lhs->current_var, lhs->current_var);
+        DEBUG("[%3u]   Recursing low", lhs->current_var);
+        lhs->current_var++;
+        result_low = ipset_apply_or(cache, lhs, rhs);
+        lhs->current_var--;
+        DEBUG("[%3u]   Back from low recursion", lhs->current_var);
+        result_high = ipset_node_incref(cache, rhs);
     }
 
-    return suffix_root;
+    return ipset_node_cache_nonterminal
+        (cache, lhs->current_var, result_low, result_high);
 }
 
+static ipset_node_id
+recurse_right(struct ipset_node_cache *cache, struct ipset_fake_node *lhs,
+              struct ipset_node *rhs)
+{
+    ipset_node_id  result_low;
+    ipset_node_id  result_high;
+
+    DEBUG("[%3u]   Recursing low", lhs->current_var);
+    result_low = ipset_apply_or(cache, lhs, rhs->low);
+    DEBUG("[%3u]   Back from low recursion", lhs->current_var);
+    DEBUG("[%3u]   Recursing high", lhs->current_var);
+    result_high = ipset_apply_or(cache, lhs, rhs->high);
+    DEBUG("[%3u]   Back from high recursion", lhs->current_var);
+
+    return ipset_node_cache_nonterminal
+        (cache, lhs->current_var, result_low, result_high);
+}
 
 static ipset_node_id
-ipset_node_insert_(struct ipset_node_cache *cache, ipset_node_id node,
-                   ipset_variable current_var, ipset_assignment_func assignment,
-                   const void *user_data, ipset_variable var_count,
-                   ipset_value value)
+recurse_both(struct ipset_node_cache *cache, struct ipset_fake_node *lhs,
+             struct ipset_node *rhs)
 {
-    if (ipset_node_get_type(node) == IPSET_NONTERMINAL_NODE) {
-        struct ipset_node  *nonterminal =
-            ipset_node_cache_get_nonterminal(cache, node);
-        ipset_node_id  new_low;
-        ipset_node_id  new_high;
+    ipset_node_id  result_low;
+    ipset_node_id  result_high;
+    struct ipset_fake_node  other = {
+        lhs->var_count, lhs->var_count, lhs->assignment, lhs->user_data, 0
+    };
+
+    if (lhs->assignment(lhs->user_data, lhs->current_var)) {
+        /* Since this bit is set in the assignment, the LHS's high
+         * branch is a true recursion, and its low branch points at the
+         * 0 terminal. */
+        DEBUG("[%3u]   x[%u] is set", lhs->current_var, lhs->current_var);
+        DEBUG("[%3u]   Recursing high", lhs->current_var);
+        lhs->current_var++;
+        result_high = ipset_apply_or(cache, lhs, rhs->high);
+        lhs->current_var--;
+        DEBUG("[%3u]   Back from high recursion", lhs->current_var);
+        DEBUG("[%3u]   Recursing low", lhs->current_var);
+        result_low = ipset_apply_or(cache, &other, rhs->low);
+        DEBUG("[%3u]   Back from low recursion", lhs->current_var);
+    } else {
+        /* and vice versa when the bit is unset */
+        DEBUG("[%3u]   x[%u] is not set", lhs->current_var, lhs->current_var);
+        DEBUG("[%3u]   Recursing low", lhs->current_var);
+        lhs->current_var++;
+        result_low = ipset_apply_or(cache, lhs, rhs->low);
+        lhs->current_var--;
+        DEBUG("[%3u]   Back from low recursion", lhs->current_var);
+        DEBUG("[%3u]   Recursing high", lhs->current_var);
+        result_high = ipset_apply_or(cache, &other, rhs->high);
+        DEBUG("[%3u]   Back from high recursion", lhs->current_var);
+    }
+
+    return ipset_node_cache_nonterminal
+        (cache, lhs->current_var, result_low, result_high);
+}
+
+static ipset_node_id
+ipset_apply_or(struct ipset_node_cache *cache, struct ipset_fake_node *lhs,
+               ipset_node_id rhs)
+{
+    ipset_variable  current_var = lhs->current_var;
+
+    /* If LHS is a terminal, then we're in one of the following two
+     * cases:
+     *
+     *   0 || Y = Y
+     *   X || Y = X
+     */
+    if (lhs->current_var == lhs->var_count) {
         ipset_node_id  result;
-        DEBUG("[%3u] Nonterminal " IPSET_NODE_ID_FORMAT,
-              nonterminal->variable, IPSET_NODE_ID_VALUES(node));
+        DEBUG("[%3u] LHS is terminal (value %u)", current_var, lhs->value);
 
-        /* If this nonterminal's variable index is larger than the last
-         * variable in the assignment, then the new value overrides the
-         * entire BDD starting from the nonterminal. */
-        if (nonterminal->variable >= var_count) {
-            DEBUG("[%3u]   Last variable in assignment is %u",
-                  nonterminal->variable, var_count-1);
-
-            /* We might have to create new nonterminals, in case
-             * there was a gap between the previous nonterminal and this
-             * one. */
-            return ipset_node_create_nonterminals
-                (cache, node, assignment, user_data,
-                 current_var, var_count, value);
-        }
-
-        if (assignment(user_data, nonterminal->variable)) {
-            /* Bit is set in the key; recurse down the high branch */
-            DEBUG("[%3u]   Recursing down high branch", nonterminal->variable);
-            new_high = ipset_node_insert_
-                (cache, nonterminal->high, nonterminal->variable + 1,
-                 assignment, user_data, var_count, value);
-            if (new_high == nonterminal->high) {
-                ipset_node_decref(cache, new_high);
-                return ipset_node_incref(cache, node);
-            }
-            new_low = ipset_node_incref(cache, nonterminal->low);
+        if (lhs->value == 0) {
+            result = ipset_node_incref(cache, rhs);
+            DEBUG("[%3u] 0 || " IPSET_NODE_ID_FORMAT
+                  " = " IPSET_NODE_ID_FORMAT,
+                  current_var, IPSET_NODE_ID_VALUES(result),
+                  IPSET_NODE_ID_VALUES(result));
         } else {
-            /* Bit is set in the key; recurse down the low branch */
-            DEBUG("[%3u]   Recursing down low branch", nonterminal->variable);
-            new_low = ipset_node_insert_
-                (cache, nonterminal->low, nonterminal->variable + 1,
-                 assignment, user_data, var_count, value);
-            if (new_low == nonterminal->low) {
-                ipset_node_decref(cache, new_low);
-                return ipset_node_incref(cache, node);
-            }
-            new_high = ipset_node_incref(cache, nonterminal->high);
+            result = ipset_terminal_node_id(lhs->value);
+            DEBUG("[%3u] %u || " IPSET_NODE_ID_FORMAT " = %u",
+                  current_var, lhs->value,
+                  IPSET_NODE_ID_VALUES(result), lhs->value);
         }
 
-        result = ipset_node_cache_nonterminal
-            (cache, nonterminal->variable, new_low, new_high);
-
-        DEBUG("[%3u]   Creating nonterminal(x%u? "
-              IPSET_NODE_ID_FORMAT ": " IPSET_NODE_ID_FORMAT
-              ") => " IPSET_NODE_ID_FORMAT,
-              nonterminal->variable, nonterminal->variable,
-              IPSET_NODE_ID_VALUES(new_high), IPSET_NODE_ID_VALUES(new_low),
-              IPSET_NODE_ID_VALUES(result));
         return result;
+    }
+
+    /* From here to the end of the function, we know that LHS is a
+     * nonterminal. */
+    DEBUG("[%3u] LHS is nonterminal", current_var);
+
+    if (ipset_node_get_type(rhs) == IPSET_TERMINAL_NODE) {
+        /* When one node (RHS) is terminal, and the other is nonterminal
+         * (LHS), then we recurse down the subtrees of the nonterminal,
+         * combining the results with the terminal. */
+        DEBUG("[%3u] RHS is terminal(%u), recursing left",
+              current_var, ipset_terminal_value(rhs));
+        return recurse_left(cache, lhs, rhs);
 
     } else {
-        ipset_value  terminal_value = ipset_terminal_value(node);
-        DEBUG("[%3u] Terminal %u", current_var, terminal_value);
+        /* When both nodes are nonterminal, the way we recurse depends
+         * on the variables of the nonterminals.  We always recurse down
+         * the nonterminal(s) with the smaller variable index.  This
+         * ensures that our BDDs remain ordered. */
+        struct ipset_node  *rhs_node =
+            ipset_node_cache_get_nonterminal(cache, rhs);
 
-        if (terminal_value == value) {
-            /* If the current node is a terminal, and its value matches
-             * what we're trying to add, then this key is already in the
-             * set. */
-            DEBUG("[%3u]   Key is already in set", current_var);
-            return ipset_node_incref(cache, node);
+        if (current_var == rhs_node->variable) {
+            DEBUG("[%3u] RHS is nonterminal(%u), recursing both",
+                  current_var, rhs_node->variable);
+            return recurse_both(cache, lhs, rhs_node);
+        } else if (current_var < rhs_node->variable) {
+            DEBUG("[%3u] RHS is nonterminal(%u), recursing left",
+                  current_var, rhs_node->variable);
+            return recurse_left(cache, lhs, rhs);
         } else {
-            /* Otherwise we need to create nonterminal nodes for each of
-             * the remaining bits in the key. */
-            DEBUG("[%3u]   Key is NOT in set", current_var);
-            return ipset_node_create_nonterminals
-                (cache, node, assignment, user_data,
-                 current_var, var_count, value);
+            DEBUG("[%3u] RHS is nonterminal(%u), recursing right",
+                  current_var, rhs_node->variable);
+            return recurse_right(cache, lhs, rhs_node);
         }
     }
 }
@@ -401,6 +459,7 @@ ipset_node_insert(struct ipset_node_cache *cache, ipset_node_id node,
                   ipset_assignment_func assignment, const void *user_data,
                   ipset_variable var_count, ipset_value value)
 {
-    return ipset_node_insert_
-        (cache, node, 0, assignment, user_data, var_count, value);
+    struct ipset_fake_node  lhs = { 0, var_count, assignment, user_data, value };
+    DEBUG("Inserting new element");
+    return ipset_apply_or(cache, &lhs, node);
 }
