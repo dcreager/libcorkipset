@@ -27,20 +27,54 @@ static bool  want_networks = false;
 
 
 static struct option longopts[] = {
+    { "help", no_argument, NULL, 'h' },
     { "output", required_argument, NULL, 'o' },
     { "networks", no_argument, NULL, 'n' },
     { NULL, 0, NULL, 0 }
 };
 
-static void
-usage(void)
-{
-    fprintf(stderr,
-            "Usage: ipsetcat [--output=<output file>]\n"
-            "                [--networks]\n"
-            "                <IP file>\n");
-}
+#define USAGE \
+"Usage: ipsetcat [options] <input filename>\n"
 
+#define FULL_USAGE \
+USAGE \
+"\n" \
+"Prints out the (non-sorted) contents of a binary IP set file.\n" \
+"\n" \
+"Options:\n" \
+"  <input filename>\n" \
+"    The binary set file to read.  If no file is given, we'll read the set\n" \
+"    from standard input.\n" \
+"  --output=<filename>, -o <filename>\n" \
+"    Writes the contents of the binary IP set file to <filename>.  If this\n" \
+"    option isn't given, then the contents will be written to standard\n" \
+"    output.\n" \
+"  --networks, -n\n" \
+"    Where possible, we group the IP addresses in the set into CIDR network\n" \
+"    blocks.  For dense sets, this can greatly reduce the amount of output\n" \
+"    that's generated.\n" \
+"  --help\n" \
+"    Display this help and exit.\n" \
+"\n" \
+"Output format:\n" \
+"  The output will contain one IP address or network per line.  If you give\n" \
+"  the \"--networks\" option, then we will collapse addresses into CIDR\n" \
+"  networks where possible.  CIDR network blocks will have one of the\n" \
+"  following formats:\n" \
+"\n" \
+"    x.x.x.x/cidr\n" \
+"    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/cidr\n" \
+"\n" \
+"  Individual IP addresses will have one of the following formats:\n" \
+"\n" \
+"    x.x.x.x\n" \
+"    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx\n" \
+"\n" \
+"  Note that we never include a /32 or /128 suffix for individual addresses,\n" \
+"  even if you've requested CIDR networks via the \"--networks\" option.\n" \
+"\n" \
+"  Please note that the output is UNSORTED.  There are no guarantees made\n" \
+"  about the order of the IP addresses and networks in the output.\n"
 
 int
 main(int argc, char **argv)
@@ -50,18 +84,22 @@ main(int argc, char **argv)
     /* Parse the command-line options. */
 
     int  ch;
-    while ((ch = getopt_long(argc, argv, "o:n", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "hno:", longopts, NULL)) != -1) {
         switch (ch) {
-            case 'o':
-                output_filename = optarg;
-                break;
+            case 'h':
+                fprintf(stdout, FULL_USAGE);
+                exit(0);
 
             case 'n':
                 want_networks = true;
                 break;
 
+            case 'o':
+                output_filename = optarg;
+                break;
+
             default:
-                usage();
+                fprintf(stderr, USAGE);
                 exit(1);
         }
     }
