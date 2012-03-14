@@ -134,40 +134,30 @@ main(int argc, char **argv)
     char  ip_buf[CORK_IP_STRING_LENGTH];
     struct cork_buffer  buf = CORK_BUFFER_INIT();
 
+    struct ipset_iterator  *it;
     if (want_networks) {
         /* If requested, iterate through network blocks instead of
          * individual IP addresses. */
-
-        struct ipset_iterator  *it;
-        for (it = ipset_iterate_networks(set, true);
-             !it->finished;
-             ipset_iterator_advance(it)) {
-            cork_ip_to_raw_string(&it->addr, ip_buf);
-            cork_buffer_printf(&buf, "%s/%u\n", ip_buf, it->cidr_prefix);
-
-            if (fputs(buf.buf, ostream) == EOF) {
-                fprintf(stderr, "Cannot write to file %s:\n  %s\n",
-                        output_filename, strerror(errno));
-                exit(1);
-            }
-        }
+        it = ipset_iterate_networks(set, true);
     } else {
         /* The user wants individual IP addresses.  Hope they know what
          * they're doing! */
+        it = ipset_iterate(set, true);
+    }
 
-        struct ipset_iterator  *it;
-        for (it = ipset_iterate(set, true);
-             !it->finished;
-             ipset_iterator_advance(it))
-        {
-            cork_ip_to_raw_string(&it->addr, ip_buf);
+    for (/* nothing */; !it->finished; ipset_iterator_advance(it)) {
+        cork_ip_to_raw_string(&it->addr, ip_buf);
+        if ((it->addr.version == 4 && it->cidr_prefix == 32) ||
+            (it->addr.version == 6 && it->cidr_prefix == 128)) {
             cork_buffer_printf(&buf, "%s\n", ip_buf);
+        } else {
+            cork_buffer_printf(&buf, "%s/%u\n", ip_buf, it->cidr_prefix);
+        }
 
-            if (fputs(buf.buf, ostream) == EOF) {
-                fprintf(stderr, "Cannot write to file %s:\n  %s\n",
-                        output_filename, strerror(errno));
-                exit(1);
-            }
+        if (fputs(buf.buf, ostream) == EOF) {
+            fprintf(stderr, "Cannot write to file %s:\n  %s\n",
+                    output_filename, strerror(errno));
+            exit(1);
         }
     }
 
