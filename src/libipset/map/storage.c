@@ -16,6 +16,7 @@
 #include <libcork/core.h>
 
 #include "ipset/bdd/nodes.h"
+#include "ipset/errors.h"
 #include "ipset/ipset.h"
 #include "../internal.h"
 

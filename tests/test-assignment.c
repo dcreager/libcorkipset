@@ -15,6 +15,7 @@
 #include <libcork/core.h>
 
 #include "ipset/bdd/nodes.h"
+#include "ipset/bits.h"
 
 
 /*-----------------------------------------------------------------------
