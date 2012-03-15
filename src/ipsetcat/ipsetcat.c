@@ -40,7 +40,7 @@ static struct option longopts[] = {
 #define FULL_USAGE \
 USAGE \
 "\n" \
-"Prints out the contents of a binary IP set file.\n" \
+"Prints out the (non-sorted) contents of a binary IP set file.\n" \
 "\n" \
 "Options:\n" \
 "  --input=<filename>, -i <filename>\n" \
