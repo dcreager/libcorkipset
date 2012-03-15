@@ -108,8 +108,8 @@ main(int argc, char **argv)
     argv += optind;
 
     if (argc > 1) {
-        fprintf(stderr, "ERROR: You cannot specify multiple input files.\n");
-        usage();
+        fprintf(stderr, "ipsetcat: You cannot specify multiple input files.\n");
+        fprintf(stderr, USAGE);
         exit(1);
     }
 
