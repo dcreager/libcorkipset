@@ -69,8 +69,8 @@ main(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
-    if (argc != 1) {
-        fprintf(stderr, "ERROR: You need to specify a single input file.\n");
+    if (argc > 1) {
+        fprintf(stderr, "ERROR: You cannot specify multiple input files.\n");
         usage();
         exit(1);
     }
