@@ -212,12 +212,12 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        fprintf(stderr, "Sumary: Read %zu valid IP address records from %s.\n",
+        fprintf(stderr, "Summary: Read %zu valid IP address records from %s.\n",
                 ip_count, filename);
-        fprintf(stderr, " IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
-                ip_count_v4_block, (ip_count_v4_block == 1) ? "" : "s");
-        fprintf(stderr, " IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
-                ip_count_v6_block, (ip_count_v6_block == 1) ? "" : "s");
+        fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
+                ip_count_v4_block, (ip_count_v4_block == 1)? "": "s");
+        fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
+                ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
 
         /* Free the streams before opening the next file. */
         if (close_stream) {
@@ -227,7 +227,7 @@ main(int argc, char **argv)
         /* If the input file has errors, then terminate the program. */
         if (ip_error) {
             fprintf(stderr, "The program halted with %zu input error%s.\n",
-                 ip_error_num, (ip_error_num == 1) ? "" : "s");
+                    ip_error_num, (ip_error_num == 1)? "": "s");
             exit(1);
         }
     }
