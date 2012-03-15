@@ -28,7 +28,8 @@ constant_comparator(const void *key1, const void *key2)
 }
 
 size_t
-ipset_node_reachable_count(ipset_node_id node)
+ipset_node_reachable_count(const struct ipset_node_cache *cache,
+                           ipset_node_id node)
 {
     /* Create a set to track when we've visited a given node. */
     struct cork_hash_table  visited;
@@ -39,7 +40,7 @@ ipset_node_reachable_count(ipset_node_id node)
     cork_array_init(&queue);
 
     if (ipset_node_get_type(node) == IPSET_NONTERMINAL_NODE) {
-        DEBUG("Adding node %p to queue", node);
+        DEBUG("Adding node %u to queue", node);
         cork_array_append(&queue, node);
     }
 
@@ -52,27 +53,29 @@ ipset_node_reachable_count(ipset_node_id node)
 
         /* We don't have to do anything if this node is already in the
          * visited set. */
-        if (cork_hash_table_get(&visited, curr) == NULL) {
-            DEBUG("Visiting node %p for the first time", curr);
+        if (cork_hash_table_get(&visited, (void *) (uintptr_t) curr) == NULL) {
+            DEBUG("Visiting node %u for the first time", curr);
 
             /* Add the node to the visited set. */
             cork_hash_table_put
-                (&visited, curr, (void *) (intptr_t) true, NULL, NULL, NULL);
+                (&visited, (void *) (uintptr_t) curr,
+                 (void *) (uintptr_t) true, NULL, NULL, NULL);
 
             /* Increase the node count. */
             node_count++;
 
             /* And add the node's nonterminal children to the visit
              * queue. */
-            struct ipset_node  *node = ipset_nonterminal_node(curr);
+            struct ipset_node  *node =
+                ipset_node_cache_get_nonterminal(cache, curr);
 
             if (ipset_node_get_type(node->low) == IPSET_NONTERMINAL_NODE) {
-                DEBUG("Adding node %p to queue", node->low);
+                DEBUG("Adding node %u to queue", node->low);
                 cork_array_append(&queue, node->low);
             }
 
             if (ipset_node_get_type(node->high) == IPSET_NONTERMINAL_NODE) {
-                DEBUG("Adding node %p to queue", node->high);
+                DEBUG("Adding node %u to queue", node->high);
                 cork_array_append(&queue, node->high);
             }
         }
@@ -86,7 +89,8 @@ ipset_node_reachable_count(ipset_node_id node)
 
 
 size_t
-ipset_node_memory_size(ipset_node_id node)
+ipset_node_memory_size(const struct ipset_node_cache *cache,
+                       ipset_node_id node)
 {
-    return ipset_node_reachable_count(node) * sizeof(struct ipset_node);
+    return ipset_node_reachable_count(cache, node) * sizeof(struct ipset_node);
 }

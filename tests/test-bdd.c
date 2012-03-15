@@ -15,6 +15,10 @@
 #include <libcork/core.h>
 
 #include "ipset/bdd/nodes.h"
+#include "ipset/bits.h"
+
+
+#define DESCRIBE_TEST  fprintf(stderr, "---\n%s\n", __func__)
 
 
 /*-----------------------------------------------------------------------
@@ -63,6 +67,7 @@ temp_file_open_stream(struct temp_file *temp_file)
 
 START_TEST(test_bit_get)
 {
+    DESCRIBE_TEST;
     uint16_t  a = CORK_UINT16_HOST_TO_BIG(0x6012); /* 0110 0000 0001 0010 */
 
     fail_unless(IPSET_BIT_GET(&a,  0) == 0, "Bit 0 is incorrect");
@@ -90,6 +95,7 @@ END_TEST
 
 START_TEST(test_bit_set)
 {
+    DESCRIBE_TEST;
     uint16_t  a = 0xffff;        /* 0110 0000 0001 0010 */
 
     IPSET_BIT_SET(&a,  0, 0);
@@ -124,10 +130,10 @@ END_TEST
 
 START_TEST(test_bdd_false_terminal)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
-    ipset_node_id  n_false =
-        ipset_node_cache_terminal(cache, false);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
 
     fail_unless(ipset_node_get_type(n_false) == IPSET_TERMINAL_NODE,
                 "False terminal has wrong type");
@@ -135,6 +141,7 @@ START_TEST(test_bdd_false_terminal)
     fail_unless(ipset_terminal_value(n_false) == false,
                 "False terminal has wrong value");
 
+    ipset_node_decref(cache, n_false);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -142,10 +149,10 @@ END_TEST
 
 START_TEST(test_bdd_true_terminal)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
-    ipset_node_id  n_true =
-        ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     fail_unless(ipset_node_get_type(n_true) == IPSET_TERMINAL_NODE,
                 "True terminal has wrong type");
@@ -153,6 +160,7 @@ START_TEST(test_bdd_true_terminal)
     fail_unless(ipset_terminal_value(n_true) == true,
                 "True terminal has wrong value");
 
+    ipset_node_decref(cache, n_true);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -160,16 +168,17 @@ END_TEST
 
 START_TEST(test_bdd_terminal_reduced_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
-    ipset_node_id  node1 =
-        ipset_node_cache_terminal(cache, false);
-    ipset_node_id  node2 =
-        ipset_node_cache_terminal(cache, false);
+    ipset_node_id  node1 = ipset_terminal_node_id(false);
+    ipset_node_id  node2 = ipset_terminal_node_id(false);
 
     fail_unless(node1 == node2,
                 "Terminal node isn't reduced");
 
+    ipset_node_decref(cache, node1);
+    ipset_node_decref(cache, node2);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -181,10 +190,11 @@ END_TEST
 
 START_TEST(test_bdd_nonterminal_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node =
         ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
@@ -192,7 +202,7 @@ START_TEST(test_bdd_nonterminal_1)
     fail_unless(ipset_node_get_type(node) == IPSET_NONTERMINAL_NODE,
                 "Nonterminal has wrong type");
 
-    struct ipset_node  *n = ipset_nonterminal_node(node);
+    struct ipset_node  *n = ipset_node_cache_get_nonterminal(cache, node);
 
     fail_unless(n->variable == 0,
                 "Nonterminal has wrong variable");
@@ -201,6 +211,7 @@ START_TEST(test_bdd_nonterminal_1)
     fail_unless(n->high == n_true,
                 "Nonterminal has wrong high pointer");
 
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -208,14 +219,15 @@ END_TEST
 
 START_TEST(test_bdd_nonterminal_reduced_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* If we create nonterminals via a BDD engine, they will be reduced
      * — i.e., every nonterminal with the same value will be in the same
      * memory location. */
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node1 =
         ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
@@ -225,6 +237,8 @@ START_TEST(test_bdd_nonterminal_reduced_1)
     fail_unless(node1 == node2,
                 "Nonterminal node isn't reduced");
 
+    ipset_node_decref(cache, node1);
+    ipset_node_decref(cache, node2);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -232,12 +246,13 @@ END_TEST
 
 START_TEST(test_bdd_nonterminal_reduced_2)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* We shouldn't have a nonterminal whose low and high subtrees are
      * equal. */
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
 
     ipset_node_id  node =
         ipset_node_cache_nonterminal(cache, 0, n_false, n_false);
@@ -245,6 +260,7 @@ START_TEST(test_bdd_nonterminal_reduced_2)
     fail_unless(node == n_false,
                 "Nonterminal node isn't reduced");
 
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -256,14 +272,15 @@ END_TEST
 
 START_TEST(test_bdd_evaluate_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = ¬x[0]
      */
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node =
         ipset_node_cache_nonterminal(cache, 0, n_true, n_false);
@@ -273,17 +290,18 @@ START_TEST(test_bdd_evaluate_1)
     uint8_t  input1[] = { 0x80 }; /* { TRUE } */
     bool  expected1 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bit_array_assignment, input1)
+                (cache, node, ipset_bit_array_assignment, input1)
                 == expected1,
                 "BDD evaluates to wrong value");
 
     uint8_t  input2[] = { 0x00 }; /* { FALSE } */
     bool  expected2 = true;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bit_array_assignment, input2)
+                (cache, node, ipset_bit_array_assignment, input2)
                 == expected2,
                 "BDD evaluates to wrong value");
 
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -291,14 +309,15 @@ END_TEST
 
 START_TEST(test_bdd_evaluate_2)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = ¬x[0] ∧ x[1]
      */
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node1 =
         ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
@@ -310,31 +329,32 @@ START_TEST(test_bdd_evaluate_2)
     bool  input1[] = { true, true };
     bool  expected1 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input1)
+                (cache, node, ipset_bool_array_assignment, input1)
                 == expected1,
                 "BDD evaluates to wrong value");
 
     bool  input2[] = { true, false };
     bool  expected2 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input2)
+                (cache, node, ipset_bool_array_assignment, input2)
                 == expected2,
                 "BDD evaluates to wrong value");
 
     bool  input3[] = { false, true };
     bool  expected3 = true;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input3)
+                (cache, node, ipset_bool_array_assignment, input3)
                 == expected3,
                 "BDD evaluates to wrong value");
 
     bool  input4[] = { false, false };
     bool  expected4 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input4)
+                (cache, node, ipset_bool_array_assignment, input4)
                 == expected4,
                 "BDD evaluates to wrong value");
 
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -344,296 +364,85 @@ END_TEST
  * Operators
  */
 
-START_TEST(test_bdd_and_reduced_1)
+START_TEST(test_bdd_insert_reduced_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = x[0] ∧ x[1]
      */
-    ipset_node_id  n_false0 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true0 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node00 =
-        ipset_node_cache_nonterminal(cache, 0, n_false0, n_true0);
-    ipset_node_id  node01 =
-        ipset_node_cache_nonterminal(cache, 1, n_false0, n_true0);
+    bool  elem[] = { true, true };
+    ipset_node_id  n_false0 = ipset_terminal_node_id(false);
     ipset_node_id  node0 =
-        ipset_node_cache_and(cache, node00, node01);
+        ipset_node_insert
+        (cache, n_false0, ipset_bool_array_assignment, elem, 2, true);
 
     /* And then do it again. */
-    ipset_node_id  n_false1 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true1 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node10 =
-        ipset_node_cache_nonterminal(cache, 0, n_false1, n_true1);
-    ipset_node_id  node11 =
-        ipset_node_cache_nonterminal(cache, 1, n_false1, n_true1);
+    ipset_node_id  n_false1 = ipset_terminal_node_id(false);
     ipset_node_id  node1 =
-        ipset_node_cache_and(cache, node10, node11);
+        ipset_node_insert
+        (cache, n_false1, ipset_bool_array_assignment, elem, 2, true);
 
     /* Verify that we get the same physical node both times. */
     fail_unless(node0 == node1,
-                "AND operator result isn't reduced");
+                "Insert result isn't reduced");
 
+    ipset_node_decref(cache, n_false0);
+    ipset_node_decref(cache, node0);
+    ipset_node_decref(cache, n_false1);
+    ipset_node_decref(cache, node1);
     ipset_node_cache_free(cache);
 }
 END_TEST
 
 
-START_TEST(test_bdd_and_evaluate_1)
+START_TEST(test_bdd_insert_evaluate_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = x[0] ∧ x[1]
      */
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  node1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
+    bool  elem[] = { true, true };
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
     ipset_node_id  node =
-        ipset_node_cache_and(cache, node0, node1);
+        ipset_node_insert
+        (cache, n_false, ipset_bool_array_assignment, elem, 2, true);
 
     /* And test we can get the right results out of it. */
 
     bool  input1[] = { true, true };
     bool  expected1 = true;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input1)
+                (cache, node, ipset_bool_array_assignment, input1)
                 == expected1,
                 "BDD evaluates to wrong value");
 
     bool  input2[] = { true, false };
     bool  expected2 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input2)
+                (cache, node, ipset_bool_array_assignment, input2)
                 == expected2,
                 "BDD evaluates to wrong value");
 
     bool  input3[] = { false, true };
     bool  expected3 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input3)
+                (cache, node, ipset_bool_array_assignment, input3)
                 == expected3,
                 "BDD evaluates to wrong value");
 
     bool  input4[] = { false, false };
     bool  expected4 = false;
     fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input4)
+                (cache, node, ipset_bool_array_assignment, input4)
                 == expected4,
                 "BDD evaluates to wrong value");
 
-    ipset_node_cache_free(cache);
-}
-END_TEST
-
-
-START_TEST(test_bdd_or_reduced_1)
-{
-    struct ipset_node_cache  *cache = ipset_node_cache_new();
-
-    /* Create a BDD representing
-     *   f(x) = x[0] ∨ x[1]
-     */
-    ipset_node_id  n_false0 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true0 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node00 =
-        ipset_node_cache_nonterminal(cache, 0, n_false0, n_true0);
-    ipset_node_id  node01 =
-        ipset_node_cache_nonterminal(cache, 1, n_false0, n_true0);
-    ipset_node_id  node0 =
-        ipset_node_cache_or(cache, node00, node01);
-
-    /* And then do it again. */
-    ipset_node_id  n_false1 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true1 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node10 =
-        ipset_node_cache_nonterminal(cache, 0, n_false1, n_true1);
-    ipset_node_id  node11 =
-        ipset_node_cache_nonterminal(cache, 1, n_false1, n_true1);
-    ipset_node_id  node1 =
-        ipset_node_cache_or(cache, node10, node11);
-
-    /* Verify that we get the same physical node both times. */
-    fail_unless(node0 == node1,
-                "OR operator result isn't reduced");
-
-    ipset_node_cache_free(cache);
-}
-END_TEST
-
-
-START_TEST(test_bdd_or_evaluate_1)
-{
-    struct ipset_node_cache  *cache = ipset_node_cache_new();
-
-    /* Create a BDD representing
-     *   f(x) = x[0] ∨ x[1]
-     */
-
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  node1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
-    ipset_node_id  node =
-        ipset_node_cache_or(cache, node0, node1);
-
-    /* And test we can get the right results out of it. */
-
-    bool  input1[] = { true, true };
-    bool  expected1 = true;
-
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input1)
-                == expected1,
-                "BDD evaluates to wrong value");
-
-    bool  input2[] = { true, false };
-    bool  expected2 = true;
-
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input2)
-                == expected2,
-                "BDD evaluates to wrong value");
-
-    bool  input3[] = { false, true };
-    bool  expected3 = true;
-
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input3)
-                == expected3,
-                "BDD evaluates to wrong value");
-
-    bool  input4[] = { false, false };
-    bool  expected4 = false;
-
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input4)
-                == expected4,
-                "BDD evaluates to wrong value");
-
-    ipset_node_cache_free(cache);
-}
-END_TEST
-
-
-START_TEST(test_bdd_ite_reduced_1)
-{
-    struct ipset_node_cache  *cache = ipset_node_cache_new();
-
-    /* Create a BDD representing
-     *   f(x) = IF (x[0] ∧ x[1])
-     *          THEN (2)
-     *          ELSE (0)
-     */
-    ipset_node_id  n_false0 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true0 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node00 =
-        ipset_node_cache_nonterminal(cache, 0, n_false0, n_true0);
-    ipset_node_id  node01 =
-        ipset_node_cache_nonterminal(cache, 1, n_false0, n_true0);
-    ipset_node_id  node02 =
-        ipset_node_cache_and(cache, node00, node01);
-
-    ipset_node_id  n_zero0 = ipset_node_cache_terminal(cache, 0);
-    ipset_node_id  n_two0 = ipset_node_cache_terminal(cache, 2);
-
-    ipset_node_id  node0 =
-        ipset_node_cache_ite(cache, node02, n_two0, n_zero0);
-
-    /* And then do it again. */
-    ipset_node_id  n_false1 = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true1 = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node10 =
-        ipset_node_cache_nonterminal(cache, 0, n_false1, n_true1);
-    ipset_node_id  node11 =
-        ipset_node_cache_nonterminal(cache, 1, n_false1, n_true1);
-    ipset_node_id  node12 =
-        ipset_node_cache_and(cache, node10, node11);
-
-    ipset_node_id  n_zero1 = ipset_node_cache_terminal(cache, 0);
-    ipset_node_id  n_two1 = ipset_node_cache_terminal(cache, 2);
-
-    ipset_node_id  node1 =
-        ipset_node_cache_ite(cache, node12, n_two1, n_zero1);
-
-    /* Verify that we get the same physical node both times. */
-    fail_unless(node0 == node1,
-                "ITE operator result isn't reduced");
-
-    ipset_node_cache_free(cache);
-}
-END_TEST
-
-
-START_TEST(test_bdd_ite_evaluate_1)
-{
-    struct ipset_node_cache  *cache = ipset_node_cache_new();
-
-    /* Create a BDD representing
-     *   f(x) = IF (x[0] ∧ x[1])
-     *          THEN (2)
-     *          ELSE (0)
-     */
-
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  node0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  node1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
-    ipset_node_id  node2 =
-        ipset_node_cache_and(cache, node0, node1);
-
-    ipset_node_id  n_zero = ipset_node_cache_terminal(cache, 0);
-    ipset_node_id  n_two = ipset_node_cache_terminal(cache, 2);
-
-    ipset_node_id  node =
-        ipset_node_cache_ite(cache, node2, n_two, n_zero);
-
-    /* And test we can get the right results out of it. */
-
-    bool  input1[] = { true, true };
-    int  expected1 = 2;
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input1)
-                == expected1,
-                "BDD evaluates to wrong value");
-
-    bool  input2[] = { true, false };
-    int  expected2 = 0;
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input2)
-                == expected2,
-                "BDD evaluates to wrong value");
-
-    bool  input3[] = { false, true };
-    int  expected3 = 0;
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input3)
-                == expected3,
-                "BDD evaluates to wrong value");
-
-    bool  input4[] = { false, false };
-    int  expected4 = 0;
-    fail_unless(ipset_node_evaluate
-                (node, ipset_bool_array_assignment, input4)
-                == expected4,
-                "BDD evaluates to wrong value");
-
+    ipset_node_decref(cache, n_false);
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -645,40 +454,40 @@ END_TEST
 
 START_TEST(test_bdd_size_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = (x[0] ∧ x[1]) ∨ (¬x[0] ∧ x[2])
      */
+    bool  elem1[] = { true, true };
+    bool  elem2[] = { false, true, true };
+    bool  elem3[] = { false, false, true };
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
-
-    ipset_node_id  t0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  f0 =
-        ipset_node_cache_nonterminal(cache, 0, n_true, n_false);
-    ipset_node_id  t1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
-    ipset_node_id  t2 =
-        ipset_node_cache_nonterminal(cache, 2, n_false, n_true);
-
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
     ipset_node_id  n1 =
-        ipset_node_cache_and(cache, t0, t1);
+        ipset_node_insert
+        (cache, n_false, ipset_bool_array_assignment, elem1, 2, true);
     ipset_node_id  n2 =
-        ipset_node_cache_and(cache, f0, t2);
+        ipset_node_insert
+        (cache, n1, ipset_bool_array_assignment, elem2, 3, true);
     ipset_node_id  node =
-        ipset_node_cache_or(cache, n1, n2);
+        ipset_node_insert
+        (cache, n2, ipset_bool_array_assignment, elem3, 3, true);
 
     /* And verify how big it is. */
 
-    fail_unless(ipset_node_reachable_count(node) == 3u,
+    fail_unless(ipset_node_reachable_count(cache, node) == 3u,
                 "BDD has wrong number of nodes");
 
-    fail_unless(ipset_node_memory_size(node) ==
+    fail_unless(ipset_node_memory_size(cache, node) ==
                 3u * sizeof(struct ipset_node),
                 "BDD takes up wrong amount of space");
 
+    ipset_node_decref(cache, n_false);
+    ipset_node_decref(cache, n1);
+    ipset_node_decref(cache, n2);
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -690,12 +499,13 @@ END_TEST
 
 START_TEST(test_bdd_save_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = true
      */
-    ipset_node_id  node = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  node = ipset_terminal_node_id(true);
 
     /* Serialize the BDD into a string. */
     struct cork_buffer  buf = CORK_BUFFER_INIT();
@@ -724,6 +534,7 @@ START_TEST(test_bdd_save_1)
 
     cork_stream_consumer_free(stream);
     cork_buffer_done(&buf);
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -731,29 +542,26 @@ END_TEST
 
 START_TEST(test_bdd_save_2)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = (x[0] ∧ x[1]) ∨ (¬x[0] ∧ x[2])
      */
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    bool  elem1[] = { true, true };
+    bool  elem2[] = { false, true, true };
+    bool  elem3[] = { false, false, true };
 
-    ipset_node_id  t0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  f0 =
-        ipset_node_cache_nonterminal(cache, 0, n_true, n_false);
-    ipset_node_id  t1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
-    ipset_node_id  t2 =
-        ipset_node_cache_nonterminal(cache, 2, n_false, n_true);
-
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
     ipset_node_id  n1 =
-        ipset_node_cache_and(cache, t0, t1);
+        ipset_node_insert
+        (cache, n_false, ipset_bool_array_assignment, elem1, 2, true);
     ipset_node_id  n2 =
-        ipset_node_cache_and(cache, f0, t2);
+        ipset_node_insert
+        (cache, n1, ipset_bool_array_assignment, elem2, 3, true);
     ipset_node_id  node =
-        ipset_node_cache_or(cache, n1, n2);
+        ipset_node_insert
+        (cache, n2, ipset_bool_array_assignment, elem3, 3, true);
 
     /* Serialize the BDD into a string. */
     struct cork_buffer  buf = CORK_BUFFER_INIT();
@@ -793,6 +601,10 @@ START_TEST(test_bdd_save_2)
 
     cork_stream_consumer_free(stream);
     cork_buffer_done(&buf);
+    ipset_node_decref(cache, n_false);
+    ipset_node_decref(cache, n1);
+    ipset_node_decref(cache, n2);
+    ipset_node_decref(cache, node);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -800,12 +612,13 @@ END_TEST
 
 START_TEST(test_bdd_load_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = true
      */
-    ipset_node_id  node = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  node = ipset_terminal_node_id(true);
 
     /* Read a BDD from a string. */
     const char  *raw =
@@ -831,6 +644,8 @@ START_TEST(test_bdd_load_1)
                 "BDD from stream doesn't match expected");
 
     temp_file_free(temp_file);
+    ipset_node_decref(cache, node);
+    ipset_node_decref(cache, read);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -838,29 +653,26 @@ END_TEST
 
 START_TEST(test_bdd_load_2)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /** Create a BDD representing
      *   f(x) = (x[0] ∧ x[1]) ∨ (¬x[0] ∧ x[2])
      */
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    bool  elem1[] = { true, true };
+    bool  elem2[] = { false, true, true };
+    bool  elem3[] = { false, false, true };
 
-    ipset_node_id  t0 =
-        ipset_node_cache_nonterminal(cache, 0, n_false, n_true);
-    ipset_node_id  f0 =
-        ipset_node_cache_nonterminal(cache, 0, n_true, n_false);
-    ipset_node_id  t1 =
-        ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
-    ipset_node_id  t2 =
-        ipset_node_cache_nonterminal(cache, 2, n_false, n_true);
-
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
     ipset_node_id  n1 =
-        ipset_node_cache_and(cache, t0, t1);
+        ipset_node_insert
+        (cache, n_false, ipset_bool_array_assignment, elem1, 2, true);
     ipset_node_id  n2 =
-        ipset_node_cache_and(cache, f0, t2);
+        ipset_node_insert
+        (cache, n1, ipset_bool_array_assignment, elem2, 3, true);
     ipset_node_id  node =
-        ipset_node_cache_or(cache, n1, n2);
+        ipset_node_insert
+        (cache, n2, ipset_bool_array_assignment, elem3, 3, true);
 
     /*
      * Read a BDD from a string.
@@ -900,6 +712,11 @@ START_TEST(test_bdd_load_2)
                 "BDD from stream doesn't match expected");
 
     temp_file_free(temp_file);
+    ipset_node_decref(cache, n_false);
+    ipset_node_decref(cache, n1);
+    ipset_node_decref(cache, n2);
+    ipset_node_decref(cache, node);
+    ipset_node_decref(cache, read);
     ipset_node_cache_free(cache);
 }
 END_TEST
@@ -911,14 +728,15 @@ END_TEST
 
 START_TEST(test_bdd_iterate_1)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = ¬x[0]
      */
 
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node =
         ipset_node_cache_nonterminal(cache, 0, n_true, n_false);
@@ -926,7 +744,7 @@ START_TEST(test_bdd_iterate_1)
     /* And test that iterating the BDD gives us the expected results. */
 
     struct ipset_assignment  *expected = ipset_assignment_new();
-    struct ipset_bdd_iterator  *it = ipset_node_iterate(node);
+    struct ipset_bdd_iterator  *it = ipset_node_iterate(cache, node);
 
     fail_if(it->finished,
             "Iterator should not be empty");
@@ -960,13 +778,14 @@ END_TEST
 
 START_TEST(test_bdd_iterate_2)
 {
+    DESCRIBE_TEST;
     struct ipset_node_cache  *cache = ipset_node_cache_new();
 
     /* Create a BDD representing
      *   f(x) = ¬x[0] ∧ x[1]
      */
-    ipset_node_id  n_false = ipset_node_cache_terminal(cache, false);
-    ipset_node_id  n_true = ipset_node_cache_terminal(cache, true);
+    ipset_node_id  n_false = ipset_terminal_node_id(false);
+    ipset_node_id  n_true = ipset_terminal_node_id(true);
 
     ipset_node_id  node1 =
         ipset_node_cache_nonterminal(cache, 1, n_false, n_true);
@@ -975,7 +794,7 @@ START_TEST(test_bdd_iterate_2)
 
     /* And test that iterating the BDD gives us the expected results. */
     struct ipset_assignment  *expected = ipset_assignment_new();
-    struct ipset_bdd_iterator  *it = ipset_node_iterate(node);
+    struct ipset_bdd_iterator  *it = ipset_node_iterate(cache, node);
 
     fail_if(it->finished,
             "Iterator should not be empty");
@@ -1051,12 +870,8 @@ test_suite()
     suite_add_tcase(s, tc_evaluation);
 
     TCase  *tc_operators = tcase_create("operators");
-    tcase_add_test(tc_operators, test_bdd_and_reduced_1);
-    tcase_add_test(tc_operators, test_bdd_and_evaluate_1);
-    tcase_add_test(tc_operators, test_bdd_or_reduced_1);
-    tcase_add_test(tc_operators, test_bdd_or_evaluate_1);
-    tcase_add_test(tc_operators, test_bdd_ite_reduced_1);
-    tcase_add_test(tc_operators, test_bdd_ite_evaluate_1);
+    tcase_add_test(tc_operators, test_bdd_insert_reduced_1);
+    tcase_add_test(tc_operators, test_bdd_insert_evaluate_1);
     suite_add_tcase(s, tc_operators);
 
     TCase  *tc_size = tcase_create("size");
@@ -1075,13 +890,7 @@ test_suite()
     tcase_add_test(tc_iteration, test_bdd_iterate_2);
     suite_add_tcase(s, tc_iteration);
 
-    Suite  *s1 = suite_create("bdd");
-    TCase  *tc1 = tcase_create("bits");
-    tcase_add_test(tc1, test_bdd_save_1);
-    suite_add_tcase(s1, tc1);
-    (void) s;
-
-    return s1;
+    return s;
 }
 
 
