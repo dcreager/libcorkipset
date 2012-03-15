@@ -100,7 +100,7 @@ main(int argc, char **argv)
 
         /* Create a FILE object for the file. */
         if (strcmp(filename, "-") == 0) {
-            fprintf(stderr, "Opening stdin...\n");
+            fprintf(stderr, "Opening stdin...\n\n");
             filename = "stdin";
             stream = stdin;
             close_stream = false;
@@ -121,6 +121,9 @@ main(int argc, char **argv)
         size_t  ip_count_v4_block = 0;
         size_t  ip_count_v6 = 0;
         size_t  ip_count_v6_block = 0;
+        size_t  line_num = 0;
+        size_t  ip_error_num = 0;
+        bool  ip_error = false;
 
 #define MAX_LINELENGTH  4096
         char  line[MAX_LINELENGTH];
@@ -129,6 +132,8 @@ main(int argc, char **argv)
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
+
+            line_num++;
 
             /* Skip empty lines and comments. Comments start with '#'
              * in the first column. */
@@ -152,8 +157,12 @@ main(int argc, char **argv)
 
             /* Try to parse the line as an IP address. */
             if (cork_ip_init(&addr, line) != 0) {
-                fprintf(stderr, "%s\n", cork_error_message());
-                exit(1);
+                fprintf(stderr, "Error: Line %zu: %s\n",
+                        line_num, cork_error_message());
+                cork_error_clear();
+                ip_error_num++;
+                ip_error = true;
+                continue;
             }
 
             /* Add to address to the ipset and update the counters */
@@ -169,16 +178,22 @@ main(int argc, char **argv)
                  * alignment of the IP address with the CIDR block. */
                 if (!loose_cidr) {
                     if (!cork_ip_is_valid_network(&addr, cidr)) {
-                        fprintf(stderr, "* Skipping %s/%u: Bad CIDR block.\n",
-                                line, cidr);
+                        fprintf(stderr, "Error: Line %zu: Bad CIDR block: "
+                                "\"%s/%u\"\n",
+                                line_num, line, cidr);
+                        ip_error_num++;
+                        ip_error = true;
                         continue;
                     }
                 }
                 ipset_ip_add_network(&set, &addr, cidr);
                 if (cork_error_occurred()) {
-                    fprintf(stderr, "* Skipping %s/%u: %s\n",
-                            line, cidr, cork_error_message());
+                    fprintf(stderr, "Error: Line %zu: Invalid IP address: "
+                            "\"%s/%u\": %s\n", 
+                            line_num, line, cidr, cork_error_message());
                     cork_error_clear();
+                    ip_error_num++;
+                    ip_error = true;
                     continue;
                 }
                 if (addr.version == 4) {
@@ -197,16 +212,23 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        fprintf(stderr, "Read %zu IP address records from %s.\n",
+        fprintf(stderr, "Sumary: Read %zu valid IP address records from %s.\n",
                 ip_count, filename);
-        fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
-                ip_count_v4_block, (ip_count_v4_block == 1)? "": "s");
-        fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
-                ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
+        fprintf(stderr, " IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
+                ip_count_v4_block, (ip_count_v4_block == 1) ? "" : "s");
+        fprintf(stderr, " IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
+                ip_count_v6_block, (ip_count_v6_block == 1) ? "" : "s");
 
         /* Free the streams before opening the next file. */
         if (close_stream) {
             fclose(stream);
+        }
+
+        /* If the input file has errors, then terminate the program. */
+        if (ip_error) {
+            fprintf(stderr, "The program halted with %zu input error%s.\n",
+                 ip_error_num, (ip_error_num == 1) ? "" : "s");
+            exit(1);
         }
     }
 
