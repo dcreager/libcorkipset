@@ -189,9 +189,17 @@ main(int argc, char **argv)
              * present, split the string there and parse the trailing
              * part as a CIDR prefix integer. */
             if ((slash_pos = strchr(line, '/')) != NULL) {
+                char  *endptr;
                 *slash_pos = '\0';
                 slash_pos++;
-                cidr = (unsigned int) strtol(slash_pos, NULL, 10);
+                cidr = (unsigned int) strtol(slash_pos, &endptr, 10);
+                if (endptr == slash_pos) {
+                    fprintf(stderr, "Error: Line %zu: Missing CIDR prefix\n",
+                            line_num);
+                    ip_error_num++;
+                    ip_error = true;
+                    continue;
+                }
             }
 
             /* Try to parse the line as an IP address. */

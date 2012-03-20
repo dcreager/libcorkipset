@@ -1,0 +1,7 @@
+Opening stdin...
+
+Error: Line 1: Missing CIDR prefix
+Summary: Read 0 valid IP address records from stdin.
+  IPv4: 0 addresses, 0 blocks
+  IPv6: 0 addresses, 0 blocks
+The program halted with 1 input error.
