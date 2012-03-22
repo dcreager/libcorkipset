@@ -167,7 +167,7 @@ main(int argc, char **argv)
 #define MAX_LINELENGTH  4096
         char  line[MAX_LINELENGTH];
         char  *slash_pos;
-        unsigned int  cidr;
+        unsigned int  cidr = 0;
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
