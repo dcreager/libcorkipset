@@ -113,7 +113,9 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    input_filename = argv[0];
+    if (argc == 1) {
+        input_filename = argv[0];
+    }
 
     /* Read in the IP set files specified on the command line. */
     struct ip_set  *set = NULL;

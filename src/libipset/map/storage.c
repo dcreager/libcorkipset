@@ -85,16 +85,18 @@ struct ip_map *
 ipmap_load(FILE *stream)
 {
     struct ip_map  *map;
+    ipset_node_id  new_bdd;
 
     /* It doesn't matter what default value we use here, because we're
      * going to replace it with the default BDD we load in from the
      * file. */
     map = ipmap_new(0);
-    map->map_bdd = ipset_node_cache_load(stream, ipset_cache);
+    new_bdd = ipset_node_cache_load(stream, ipset_cache);
     if (cork_error_occurred()) {
         ipmap_free(map);
         return NULL;
     }
 
+    map->map_bdd = new_bdd;
     return map;
 }
