@@ -199,6 +199,13 @@ main(int argc, char **argv)
                     ip_error_num++;
                     ip_error = true;
                     continue;
+                } else if (*slash_pos == '\0' || *endptr != '\0') {
+                    fprintf(stderr,
+                            "Error: Line %zu: Invalid CIDR prefix \"%s\"\n",
+                            line_num, slash_pos);
+                    ip_error_num++;
+                    ip_error = true;
+                    continue;
                 }
             }
 
