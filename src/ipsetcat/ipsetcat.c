@@ -21,7 +21,7 @@
 #include "ipset/ipset.h"
 
 
-static char  *input_filename = "-";
+static char  *input_filename = NULL;
 static char  *output_filename = "-";
 static bool  want_networks = false;
 
@@ -43,8 +43,8 @@ USAGE \
 "\n" \
 "Options:\n" \
 "  <input filename>\n" \
-"    The binary set file to read.  If no file is given, we'll read the set\n" \
-"    from standard input.\n" \
+"    The binary set file to read.  To read from stdin, use \"-\" as the\n" \
+"    filename.\n" \
 "  --output=<filename>, -o <filename>\n" \
 "    Writes the contents of the binary IP set file to <filename>.  If this\n" \
 "    option isn't given, then the contents will be written to standard\n" \
@@ -107,15 +107,13 @@ main(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
-    if (argc > 1) {
-        fprintf(stderr, "ipsetcat: You cannot specify multiple input files.\n");
+    if (argc != 1) {
+        fprintf(stderr, "ipsetcat: You must specify exactly one input file.\n");
         fprintf(stderr, USAGE);
         exit(1);
     }
 
-    if (argc == 1) {
-        input_filename = argv[0];
-    }
+    input_filename = argv[0];
 
     /* Read in the IP set files specified on the command line. */
     struct ip_set  *set = NULL;
