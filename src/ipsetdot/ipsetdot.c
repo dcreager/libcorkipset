@@ -21,19 +21,18 @@
 #include "ipset/ipset.h"
 
 
-static char  *input_filename = "-";
+static char  *input_filename = NULL;
 static char  *output_filename = "-";
 
 
 static struct option longopts[] = {
     { "help", no_argument, NULL, 'h' },
-    { "input", required_argument, NULL, 'i' },
     { "output", required_argument, NULL, 'o' },
     { NULL, 0, NULL, 0 }
 };
 
 #define USAGE \
-"Usage: ipsetdot [options]\n"
+"Usage: ipsetdot [options] <input filename>\n"
 
 #define FULL_USAGE \
 USAGE \
@@ -41,9 +40,9 @@ USAGE \
 "Creates a GraphViz file showing the BDD structure of an IP set.\n" \
 "\n" \
 "Options:\n" \
-"  --input=<filename>, -i <filename>\n" \
-"    The binary set file to read.  If this option isn't given, we'll read\n" \
-"    set from standard input.\n" \
+"  <input filename>\n" \
+"    The binary set file to read.  To read from stdin, use \"-\" as the\n" \
+"    filename.\n" \
 "  --output=<filename>, -o <filename>\n" \
 "    Writes the GraphViz representation of the binary IP set file to\n" \
 "    <filename>.  If this option isn't given, then the contents will be\n" \
@@ -67,15 +66,11 @@ main(int argc, char **argv)
     /* Parse the command-line options. */
 
     int  ch;
-    while ((ch = getopt_long(argc, argv, "hi:o:", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "ho:", longopts, NULL)) != -1) {
         switch (ch) {
             case 'h':
                 fprintf(stdout, FULL_USAGE);
                 exit(0);
-
-            case 'i':
-                input_filename = optarg;
-                break;
 
             case 'o':
                 output_filename = optarg;
@@ -90,41 +85,46 @@ main(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
+    if (argc != 1) {
+        fprintf(stderr, "ipsetdot: You must specify exactly one input file.\n");
+        fprintf(stderr, USAGE);
+        exit(1);
+    }
+
+    input_filename = argv[0];
+
     /* Read in the IP set files specified on the command line. */
     struct ip_set  *set = NULL;
+    FILE  *stream;
+    bool  close_stream;
 
-    {
-        FILE  *stream;
-        bool  close_stream;
-
-        /* Create a raw GInputStream for the file. */
-        if (strcmp(input_filename, "-") == 0) {
-            fprintf(stderr, "Opening stdin...\n");
-            input_filename = "stdin";
-            stream = stdin;
-            close_stream = false;
-        } else {
-            fprintf(stderr, "Opening file %s...\n", input_filename);
-            stream = fopen(input_filename, "rb");
-            if (stream == NULL) {
-                fprintf(stderr, "Cannot open file %s:\n  %s\n",
-                        input_filename, strerror(errno));
-                exit(1);
-            }
-            close_stream = true;
-        }
-
-        /* Read in the IP set from the specified file. */
-        set = ipset_load(stream);
-        if (set == NULL) {
-            fprintf(stderr, "Error reading %s:\n  %s\n",
-                    input_filename, cork_error_message());
+    /* Create a FILE object for the file. */
+    if (strcmp(input_filename, "-") == 0) {
+        fprintf(stderr, "Opening stdin...\n");
+        input_filename = "stdin";
+        stream = stdin;
+        close_stream = false;
+    } else {
+        fprintf(stderr, "Opening file %s...\n", input_filename);
+        stream = fopen(input_filename, "rb");
+        if (stream == NULL) {
+            fprintf(stderr, "Cannot open file %s:\n  %s\n",
+                    input_filename, strerror(errno));
             exit(1);
         }
+        close_stream = true;
+    }
 
-        if (close_stream) {
-            fclose(stream);
-        }
+    /* Read in the IP set from the specified file. */
+    set = ipset_load(stream);
+    if (set == NULL) {
+        fprintf(stderr, "Error reading %s:\n  %s\n",
+                input_filename, cork_error_message());
+        exit(1);
+    }
+
+    if (close_stream) {
+        fclose(stream);
     }
 
     /* Generate a GraphViz dot file for the set. */

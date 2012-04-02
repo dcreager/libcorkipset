@@ -94,13 +94,15 @@ struct ip_set *
 ipset_load(FILE *stream)
 {
     struct ip_set  *set;
+    ipset_node_id  new_bdd;
 
     set = ipset_new();
-    set->set_bdd = ipset_node_cache_load(stream, ipset_cache);
+    new_bdd = ipset_node_cache_load(stream, ipset_cache);
     if (cork_error_occurred()) {
         ipset_free(set);
         return NULL;
     }
 
+    set->set_bdd = new_bdd;
     return set;
 }
