@@ -44,7 +44,7 @@ is_string_whitespace(const char *str)
 }
 
 #define USAGE \
-"Usage: ipsetbuild [options] [<input file>...]\n"
+"Usage: ipsetbuild [options] <input file>...\n"
 
 #define FULL_USAGE \
 USAGE \
@@ -53,9 +53,8 @@ USAGE \
 "\n" \
 "Options:\n" \
 "  <input file>...\n" \
-"    An optional list of text files that contain the IP addresses and\n" \
-"    networks to add to the set.  If no files are given, the addresses\n" \
-"    are read from standard input.\n" \
+"    A list of text files that contain the IP addresses and networks to add\n" \
+"    to the set.  To read from stdin, use \"-\" as the filename.\n" \
 "  --output=<filename>, -o <filename>\n" \
 "    Writes the binary IP set file to <filename>.  If this option isn't\n" \
 "    given, then the binary set will be written to standard output.\n" \
@@ -117,8 +116,7 @@ main(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
-    /* Verify that the user specified at least one SiLK file to read. */
-
+    /* Verify that the user specified at least one text file to read. */
     if (argc == 0) {
         fprintf(stderr,
                 "ipsetbuild: You need to specify at least one input file.\n");
@@ -126,8 +124,17 @@ main(int argc, char **argv)
         exit(1);
     }
 
+    /* And an output file to write to. */
+    if (output_filename == NULL) {
+        fprintf(stderr,
+                "ipsetbuild: You need to specify an output file.\n");
+        fprintf(stderr, USAGE);
+        exit(1);
+    }
+
     /* Read in the IP set files specified on the command line. */
 
+    bool  read_from_stdin = false;
     struct ip_set  set;
     ipset_init(&set);
 
@@ -139,10 +146,17 @@ main(int argc, char **argv)
 
         /* Create a FILE object for the file. */
         if (strcmp(filename, "-") == 0) {
+            if (read_from_stdin) {
+                fprintf(stderr,
+                        "ipsetbuild: Cannot read from stdin more than once.\n");
+                exit(1);
+            }
+
             fprintf(stderr, "Opening stdin...\n\n");
             filename = "stdin";
             stream = stdin;
             close_stream = false;
+            read_from_stdin = true;
         } else {
             fprintf(stderr, "Opening file %s...\n", filename);
             stream = fopen(filename, "rb");
@@ -293,7 +307,7 @@ main(int argc, char **argv)
     FILE  *ostream;
     bool  close_ostream;
 
-    if ((output_filename == NULL) || (strcmp(output_filename, "-") == 0)) {
+    if (strcmp(output_filename, "-") == 0) {
         fprintf(stderr, "Writing to stdout...\n");
         ostream = stdout;
         output_filename = "stdout";
