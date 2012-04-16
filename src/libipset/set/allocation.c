@@ -12,7 +12,6 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 
 void
@@ -20,6 +19,7 @@ ipset_init(struct ip_set *set)
 {
     /* The set starts empty, so every value assignment should yield
      * false. */
+    set->cache = ipset_node_cache_new();
     set->set_bdd = ipset_terminal_node_id(false);
 }
 
@@ -36,7 +36,8 @@ ipset_new(void)
 void
 ipset_done(struct ip_set *set)
 {
-    ipset_node_decref(ipset_cache, set->set_bdd);
+    ipset_node_decref(set->cache, set->set_bdd);
+    ipset_node_cache_free(set->cache);
 }
 
 

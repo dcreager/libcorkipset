@@ -16,7 +16,6 @@
 #include "ipset/bits.h"
 #include "ipset/ipset.h"
 #include "ipset/logging.h"
-#include "../internal.h"
 
 
 #define IPV4_BIT_SIZE  32
@@ -289,7 +288,7 @@ create_iterator(struct ip_set *set, bool desired_value, bool summarize)
 
     /* Then create the iterator that returns each BDD assignment. */
     DEBUG("Iterating set");
-    iterator->bdd_iterator = ipset_node_iterate(ipset_cache, set->set_bdd);
+    iterator->bdd_iterator = ipset_node_iterate(set->cache, set->set_bdd);
 
     /* Then drill down from the current BDD assignment, creating an
      * expanded assignment for it. */

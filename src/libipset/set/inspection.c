@@ -12,7 +12,6 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 bool
 ipset_is_empty(const struct ip_set *set)
@@ -24,15 +23,14 @@ ipset_is_empty(const struct ip_set *set)
 bool
 ipset_is_equal(const struct ip_set *set1, const struct ip_set *set2)
 {
-    /* Since BDDs are unique, sets can only be equal if their BDDs are
-     * equal. */
-    return (set1->set_bdd == set2->set_bdd);
+    return ipset_node_cache_nodes_equal
+        (set1->cache, set1->set_bdd, set2->cache, set2->set_bdd);
 }
 
 size_t
 ipset_memory_size(const struct ip_set *set)
 {
-    return ipset_node_memory_size(ipset_cache, set->set_bdd);
+    return ipset_node_memory_size(set->cache, set->set_bdd);
 }
 
 

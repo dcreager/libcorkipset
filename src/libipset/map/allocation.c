@@ -12,7 +12,6 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 
 void
@@ -20,6 +19,7 @@ ipmap_init(struct ip_map *map, int default_value)
 {
     /* The map starts empty, so every value assignment should yield the
      * default. */
+    map->cache = ipset_node_cache_new();
     map->default_bdd = ipset_terminal_node_id(default_value);
     map->map_bdd = map->default_bdd;
 }
@@ -37,7 +37,8 @@ ipmap_new(int default_value)
 void
 ipmap_done(struct ip_map *map)
 {
-    ipset_node_decref(ipset_cache, map->map_bdd);
+    ipset_node_decref(map->cache, map->map_bdd);
+    ipset_node_cache_free(map->cache);
 }
 
 

@@ -156,6 +156,31 @@ ipset_node_decref(struct ipset_node_cache *cache, ipset_node_id node_id)
     }
 }
 
+bool
+ipset_node_cache_nodes_equal(const struct ipset_node_cache *cache1,
+                             ipset_node_id node_id1,
+                             const struct ipset_node_cache *cache2,
+                             ipset_node_id node_id2)
+{
+    struct ipset_node  *node1;
+    struct ipset_node  *node2;
+
+    if (ipset_node_get_type(node_id1) != ipset_node_get_type(node_id2)) {
+        return false;
+    }
+
+    if (ipset_node_get_type(node_id1) == IPSET_TERMINAL_NODE) {
+        return node_id1 == node_id2;
+    }
+
+    node1 = ipset_node_cache_get_nonterminal(cache1, node_id1);
+    node2 = ipset_node_cache_get_nonterminal(cache2, node_id2);
+    return
+        (node1->variable == node2->variable) &&
+        ipset_node_cache_nodes_equal(cache1, node1->low, cache2, node2->low) &&
+        ipset_node_cache_nodes_equal(cache1, node1->high, cache2, node2->high);
+}
+
 ipset_node_id
 ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
                              ipset_variable variable,
