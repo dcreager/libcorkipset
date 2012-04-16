@@ -18,7 +18,6 @@
 #include "ipset/bdd/nodes.h"
 #include "ipset/errors.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 
 static void
@@ -68,7 +67,7 @@ int
 ipmap_save_to_stream(struct cork_stream_consumer *stream,
                      const struct ip_map *map)
 {
-    return ipset_node_cache_save(stream, ipset_cache, map->map_bdd);
+    return ipset_node_cache_save(stream, map->cache, map->map_bdd);
 }
 
 int
@@ -91,7 +90,7 @@ ipmap_load(FILE *stream)
      * going to replace it with the default BDD we load in from the
      * file. */
     map = ipmap_new(0);
-    new_bdd = ipset_node_cache_load(stream, ipset_cache);
+    new_bdd = ipset_node_cache_load(stream, map->cache);
     if (cork_error_occurred()) {
         ipmap_free(map);
         return NULL;

@@ -20,11 +20,13 @@
 
 
 struct ip_set {
+    struct ipset_node_cache  *cache;
     ipset_node_id  set_bdd;
 };
 
 
 struct ip_map {
+    struct ipset_node_cache  *cache;
     ipset_node_id  map_bdd;
     ipset_node_id  default_bdd;
 };

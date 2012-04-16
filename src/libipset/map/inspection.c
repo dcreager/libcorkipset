@@ -12,7 +12,6 @@
 
 #include "ipset/bdd/nodes.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 bool
 ipmap_is_empty(const struct ip_map *map)
@@ -25,15 +24,14 @@ ipmap_is_empty(const struct ip_map *map)
 bool
 ipmap_is_equal(const struct ip_map *map1, const struct ip_map *map2)
 {
-    /* Since BDDs are unique, maps can only be equal if their BDDs are
-     * equal. */
-    return (map1->map_bdd == map2->map_bdd);
+    return ipset_node_cache_nodes_equal
+        (map1->cache, map1->map_bdd, map2->cache, map2->map_bdd);
 }
 
 size_t
 ipmap_memory_size(const struct ip_map *map)
 {
-    return ipset_node_memory_size(ipset_cache, map->map_bdd);
+    return ipset_node_memory_size(map->cache, map->map_bdd);
 }
 
 

@@ -14,7 +14,6 @@
 #include "ipset/bits.h"
 #include "ipset/errors.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 
 /**
@@ -51,7 +50,7 @@ int
 IPMAP_NAME(get)(struct ip_map *map, CORK_IP *elem)
 {
     return ipset_node_evaluate
-        (ipset_cache, map->map_bdd, IPMAP_NAME(assignment), elem);
+        (map->cache, map->map_bdd, IPMAP_NAME(assignment), elem);
 }
 
 
@@ -70,9 +69,9 @@ IPMAP_NAME(set_network)(struct ip_map *map, CORK_IP *elem,
 
     ipset_node_id  new_bdd =
         ipset_node_insert
-        (ipset_cache, map->map_bdd,
+        (map->cache, map->map_bdd,
          IPMAP_NAME(assignment), elem, cidr_prefix + 1, value);
-    ipset_node_decref(ipset_cache, map->map_bdd);
+    ipset_node_decref(map->cache, map->map_bdd);
     map->map_bdd = new_bdd;
 }
 
@@ -82,8 +81,8 @@ IPMAP_NAME(set)(struct ip_map *map, CORK_IP *elem, int value)
 {
     ipset_node_id  new_bdd =
         ipset_node_insert
-        (ipset_cache, map->map_bdd,
+        (map->cache, map->map_bdd,
          IPMAP_NAME(assignment), elem, IP_BIT_SIZE + 1, value);
-    ipset_node_decref(ipset_cache, map->map_bdd);
+    ipset_node_decref(map->cache, map->map_bdd);
     map->map_bdd = new_bdd;
 }

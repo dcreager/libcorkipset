@@ -260,6 +260,16 @@ ipset_node_cache_save(struct cork_stream_consumer *stream,
 
 
 /**
+ * Compare two BDD nodes, possibly from different caches, for equality.
+ */
+bool
+ipset_node_cache_nodes_equal(const struct ipset_node_cache *cache1,
+                             ipset_node_id node1,
+                             const struct ipset_node_cache *cache2,
+                             ipset_node_id node2);
+
+
+/**
  * Save a GraphViz dot graph for a BDD.  The graph script is written
  * to the given output stream.  This graph only includes those nodes
  * that are reachable from the BDD's root node.

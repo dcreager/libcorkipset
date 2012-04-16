@@ -18,7 +18,6 @@
 #include "ipset/bdd/nodes.h"
 #include "ipset/errors.h"
 #include "ipset/ipset.h"
-#include "../internal.h"
 
 
 static void
@@ -67,7 +66,7 @@ int
 ipset_save_to_stream(struct cork_stream_consumer *stream,
                      const struct ip_set *set)
 {
-    return ipset_node_cache_save(stream, ipset_cache, set->set_bdd);
+    return ipset_node_cache_save(stream, set->cache, set->set_bdd);
 }
 
 int
@@ -86,7 +85,7 @@ ipset_save_dot(FILE *fp, const struct ip_set *set)
     struct file_consumer  stream = {
         { file_consumer_data, file_consumer_eof, NULL }, fp
     };
-    return ipset_node_cache_save_dot(&stream.parent, ipset_cache, set->set_bdd);
+    return ipset_node_cache_save_dot(&stream.parent, set->cache, set->set_bdd);
 }
 
 
@@ -97,7 +96,7 @@ ipset_load(FILE *stream)
     ipset_node_id  new_bdd;
 
     set = ipset_new();
-    new_bdd = ipset_node_cache_load(stream, ipset_cache);
+    new_bdd = ipset_node_cache_load(stream, set->cache);
     if (cork_error_occurred()) {
         ipset_free(set);
         return NULL;
