@@ -23,6 +23,7 @@
 
 static char  *input_filename = NULL;
 static char  *output_filename = "-";
+static bool  verbose = false;
 static bool  want_networks = false;
 
 
@@ -30,6 +31,7 @@ static struct option longopts[] = {
     { "help", no_argument, NULL, 'h' },
     { "output", required_argument, NULL, 'o' },
     { "networks", no_argument, NULL, 'n' },
+    { "verbose", 0, NULL, 'v' },
     { NULL, 0, NULL, 0 }
 };
 
@@ -53,6 +55,10 @@ USAGE \
 "    Where possible, we group the IP addresses in the set into CIDR network\n" \
 "    blocks.  For dense sets, this can greatly reduce the amount of output\n" \
 "    that's generated.\n" \
+"  --verbose, -v\n" \
+"    Show progress information about the files being read and written.  If\n" \
+"    this option is not given, the only output will be any error messages\n" \
+"    that occur.\n" \
 "  --help\n" \
 "    Display this help and exit.\n" \
 "\n" \
@@ -98,6 +104,10 @@ main(int argc, char **argv)
                 output_filename = optarg;
                 break;
 
+            case 'v':
+                verbose = true;
+                break;
+
             default:
                 fprintf(stderr, USAGE);
                 exit(1);
@@ -122,12 +132,16 @@ main(int argc, char **argv)
 
     /* Create a FILE object for the file. */
     if (strcmp(input_filename, "-") == 0) {
-        fprintf(stderr, "Opening stdin...\n");
+        if (verbose) {
+            fprintf(stderr, "Opening stdin...\n");
+        }
         input_filename = "stdin";
         stream = stdin;
         close_stream = false;
     } else {
-        fprintf(stderr, "Opening file %s...\n", input_filename);
+        if (verbose) {
+            fprintf(stderr, "Opening file %s...\n", input_filename);
+        }
         stream = fopen(input_filename, "rb");
         if (stream == NULL) {
             fprintf(stderr, "Cannot open file %s:\n  %s\n",
@@ -153,12 +167,16 @@ main(int argc, char **argv)
     FILE  *ostream;
     bool  close_ostream;
     if ((output_filename == NULL) || (strcmp(output_filename, "-") == 0)) {
-        fprintf(stderr, "Writing to stdout...\n");
+        if (verbose) {
+            fprintf(stderr, "Writing to stdout...\n");
+        }
         ostream = stdout;
         output_filename = "stdout";
         close_ostream = false;
     } else {
-        fprintf(stderr, "Writing to file %s...\n", output_filename);
+        if (verbose) {
+            fprintf(stderr, "Writing to file %s...\n", output_filename);
+        }
         ostream = fopen(output_filename, "wb");
         if (ostream == NULL) {
             fprintf(stderr, "Cannot open file %s:\n  %s\n",

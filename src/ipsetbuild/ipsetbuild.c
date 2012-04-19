@@ -23,11 +23,13 @@
 
 static char  *output_filename = NULL;
 static bool  loose_cidr = false;
+static bool  verbose = false;
 
 static struct option longopts[] = {
     { "help", no_argument, NULL, 'h' },
     { "output", required_argument, NULL, 'o' },
     { "loose-cidr", 0, NULL, 'l' },
+    { "verbose", 0, NULL, 'v' },
     { NULL, 0, NULL, 0 }
 };
 
@@ -61,6 +63,11 @@ USAGE \
 "  --loose-cidr, -l\n" \
 "    Be more lenient about the address portion of any CIDR network blocks\n" \
 "    found in the input file.\n" \
+"  --verbose, -v\n" \
+"    Show summary information about the IP set that's build, as well as\n" \
+"    progress information about the files being read and written.  If this\n" \
+"    option is not given, the only output will be any error messages that\n" \
+"    occur.\n" \
 "  --help\n" \
 "    Display this help and exit.\n" \
 "\n" \
@@ -105,6 +112,10 @@ main(int argc, char **argv)
 
             case 'o':
                 output_filename = optarg;
+                break;
+
+            case 'v':
+                verbose = true;
                 break;
 
             default:
@@ -152,13 +163,17 @@ main(int argc, char **argv)
                 exit(1);
             }
 
-            fprintf(stderr, "Opening stdin...\n\n");
+            if (verbose) {
+                fprintf(stderr, "Opening stdin...\n\n");
+            }
             filename = "stdin";
             stream = stdin;
             close_stream = false;
             read_from_stdin = true;
         } else {
-            fprintf(stderr, "Opening file %s...\n", filename);
+            if (verbose) {
+                fprintf(stderr, "Opening file %s...\n", filename);
+            }
             stream = fopen(filename, "rb");
             if (stream == NULL) {
                 fprintf(stderr, "Cannot open file %s:\n  %s\n",
@@ -280,12 +295,15 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        fprintf(stderr, "Summary: Read %zu valid IP address records from %s.\n",
-                ip_count, filename);
-        fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
-                ip_count_v4_block, (ip_count_v4_block == 1)? "": "s");
-        fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
-                ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
+        if (verbose) {
+            fprintf(stderr,
+                    "Summary: Read %zu valid IP address records from %s.\n",
+                    ip_count, filename);
+            fprintf(stderr, "  IPv4: %zu addresses, %zu block%s\n", ip_count_v4,
+                    ip_count_v4_block, (ip_count_v4_block == 1)? "": "s");
+            fprintf(stderr, "  IPv6: %zu addresses, %zu block%s\n", ip_count_v6,
+                    ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
+        }
 
         /* Free the streams before opening the next file. */
         if (close_stream) {
@@ -300,20 +318,26 @@ main(int argc, char **argv)
         }
     }
 
-    fprintf(stderr, "Set uses %zu bytes of memory.\n",
-            ipset_memory_size(&set));
+    if (verbose) {
+        fprintf(stderr, "Set uses %zu bytes of memory.\n",
+                ipset_memory_size(&set));
+    }
 
     /* Serialize the IP set to the desired output file. */
     FILE  *ostream;
     bool  close_ostream;
 
     if (strcmp(output_filename, "-") == 0) {
-        fprintf(stderr, "Writing to stdout...\n");
+        if (verbose) {
+            fprintf(stderr, "Writing to stdout...\n");
+        }
         ostream = stdout;
         output_filename = "stdout";
         close_ostream = false;
     } else {
-        fprintf(stderr, "Writing to file %s...\n", output_filename);
+        if (verbose) {
+            fprintf(stderr, "Writing to file %s...\n", output_filename);
+        }
         ostream = fopen(output_filename, "wb");
         if (ostream == NULL) {
             fprintf(stderr, "Cannot open file %s:\n  %s\n",
