@@ -176,22 +176,6 @@ START_TEST(test_ipv4_bad_cidr_prefix_01)
 
     ipset_init(&set);
     cork_ipv4_init(&addr, "192.168.1.100");
-    ipset_ipv4_add_network(&set, &addr, 0);
-    fail_unless(ipset_is_empty(&set),
-                "Bad CIDR prefix shouldn't change set");
-    cork_error_clear();
-    ipset_done(&set);
-}
-END_TEST
-
-START_TEST(test_ipv4_bad_cidr_prefix_02)
-{
-    DESCRIBE_TEST;
-    struct ip_set  set;
-    struct cork_ipv4  addr;
-
-    ipset_init(&set);
-    cork_ipv4_init(&addr, "192.168.1.100");
     ipset_ipv4_add_network(&set, &addr, 33);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
@@ -476,22 +460,6 @@ START_TEST(test_ipv6_bad_cidr_prefix_01)
 
     ipset_init(&set);
     cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
-    ipset_ipv6_add_network(&set, &addr, 0);
-    fail_unless(ipset_is_empty(&set),
-                "Bad CIDR prefix shouldn't change set");
-    cork_error_clear();
-    ipset_done(&set);
-}
-END_TEST
-
-START_TEST(test_ipv6_bad_cidr_prefix_02)
-{
-    DESCRIBE_TEST;
-    struct ip_set  set;
-    struct cork_ipv6  addr;
-
-    ipset_init(&set);
-    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
     ipset_ipv6_add_network(&set, &addr, 129);
     fail_unless(ipset_is_empty(&set),
                 "Bad CIDR prefix shouldn't change set");
@@ -751,7 +719,6 @@ ipset_suite()
     tcase_add_test(tc_ipv4, test_ipv4_insert_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_01);
-    tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_02);
     tcase_add_test(tc_ipv4, test_ipv4_contains_01);
     tcase_add_test(tc_ipv4, test_ipv4_contains_02);
     tcase_add_test(tc_ipv4, test_ipv4_network_contains_01);
@@ -770,7 +737,6 @@ ipset_suite()
     tcase_add_test(tc_ipv6, test_ipv6_insert_01);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_01);
     tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_01);
-    tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_02);
     tcase_add_test(tc_ipv6, test_ipv6_contains_01);
     tcase_add_test(tc_ipv6, test_ipv6_contains_02);
     tcase_add_test(tc_ipv6, test_ipv6_network_contains_01);

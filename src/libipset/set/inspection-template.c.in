@@ -60,7 +60,7 @@ IPSET_NAME(add_network)(struct ip_set *set, CORK_IP *elem,
 {
     /* Special case — the BDD for a netmask that's out of range never
      * evaluates to true. */
-    if ((cidr_prefix == 0) || (cidr_prefix > IP_BIT_SIZE)) {
+    if (cidr_prefix > IP_BIT_SIZE) {
         cork_error_set
             (IPSET_ERROR, IPSET_PARSE_ERROR,
              "CIDR block %u out of range [0..%u]", cidr_prefix, IP_BIT_SIZE);
