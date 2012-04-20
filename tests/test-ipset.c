@@ -152,6 +152,24 @@ START_TEST(test_ipv4_insert_01)
 }
 END_TEST
 
+START_TEST(test_ipv4_remove_01)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set;
+    struct cork_ipv4  addr;
+
+    ipset_init(&set);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    fail_if(ipset_ipv4_add(&set, &addr),
+            "Element should not be present");
+    fail_if(ipset_ipv4_remove(&set, &addr),
+            "Element should be present");
+    fail_unless(ipset_ipv4_remove(&set, &addr),
+                "Element should not be present");
+    ipset_done(&set);
+}
+END_TEST
+
 START_TEST(test_ipv4_insert_network_01)
 {
     DESCRIBE_TEST;
@@ -164,6 +182,24 @@ START_TEST(test_ipv4_insert_network_01)
             "Element should not be present");
     fail_unless(ipset_ipv4_add_network(&set, &addr, 24),
                 "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv4_remove_network_01)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set;
+    struct cork_ipv4  addr;
+
+    ipset_init(&set);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    fail_if(ipset_ipv4_add_network(&set, &addr, 24),
+            "Element should not be present");
+    fail_if(ipset_ipv4_remove_network(&set, &addr, 24),
+            "Element should be present");
+    fail_unless(ipset_ipv4_remove_network(&set, &addr, 24),
+                "Element should not be present");
     ipset_done(&set);
 }
 END_TEST
@@ -436,6 +472,24 @@ START_TEST(test_ipv6_insert_01)
 }
 END_TEST
 
+START_TEST(test_ipv6_remove_01)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    fail_if(ipset_ipv6_add(&set, &addr),
+            "Element should not be present");
+    fail_if(ipset_ipv6_remove(&set, &addr),
+            "Element should be present");
+    fail_unless(ipset_ipv6_remove(&set, &addr),
+                "Element should not be present");
+    ipset_done(&set);
+}
+END_TEST
+
 START_TEST(test_ipv6_insert_network_01)
 {
     DESCRIBE_TEST;
@@ -448,6 +502,24 @@ START_TEST(test_ipv6_insert_network_01)
             "Element should not be present");
     fail_unless(ipset_ipv6_add_network(&set, &addr, 32),
                 "Element should be present");
+    ipset_done(&set);
+}
+END_TEST
+
+START_TEST(test_ipv6_remove_network_01)
+{
+    DESCRIBE_TEST;
+    struct ip_set  set;
+    struct cork_ipv6  addr;
+
+    ipset_init(&set);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    fail_if(ipset_ipv6_add_network(&set, &addr, 32),
+            "ELement should not be present");
+    fail_if(ipset_ipv6_remove_network(&set, &addr, 32),
+            "Element should be present");
+    fail_unless(ipset_ipv6_remove_network(&set, &addr, 32),
+                "Element should not be present");
     ipset_done(&set);
 }
 END_TEST
@@ -708,7 +780,6 @@ Suite *
 ipset_suite()
 {
     Suite  *s = suite_create("ipset");
-
     TCase  *tc_general = tcase_create("general");
     tcase_add_test(tc_general, test_set_starts_empty);
     tcase_add_test(tc_general, test_empty_sets_equal);
@@ -717,7 +788,9 @@ ipset_suite()
 
     TCase  *tc_ipv4 = tcase_create("ipv4");
     tcase_add_test(tc_ipv4, test_ipv4_insert_01);
+    tcase_add_test(tc_ipv4, test_ipv4_remove_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
+    tcase_add_test(tc_ipv4, test_ipv4_remove_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_01);
     tcase_add_test(tc_ipv4, test_ipv4_contains_01);
     tcase_add_test(tc_ipv4, test_ipv4_contains_02);
@@ -735,7 +808,9 @@ ipset_suite()
 
     TCase  *tc_ipv6 = tcase_create("ipv6");
     tcase_add_test(tc_ipv6, test_ipv6_insert_01);
+    tcase_add_test(tc_ipv6, test_ipv6_remove_01);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_01);
+    tcase_add_test(tc_ipv6, test_ipv6_remove_network_01);
     tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_01);
     tcase_add_test(tc_ipv6, test_ipv6_contains_01);
     tcase_add_test(tc_ipv6, test_ipv6_contains_02);

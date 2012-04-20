@@ -145,6 +145,23 @@ ipset_ipv4_add_network(struct ip_set *set, struct cork_ipv4 *elem,
                        unsigned int cidr_prefix);
 
 /**
+ * Removes a single IPv4 address from an IP set.  Returns true if the address
+ * was in the set (change to the IP set); false otherwise.
+ */
+bool
+ipset_ipv4_remove(struct ip_set *set, struct cork_ipv4 *elem);
+
+/**
+ * Removes a network of IPv4 addresses from an IP set.  All fo the addresses
+ * that start with the first cidr_prefix bits fo elem will be removed from
+ * the set.  Returns true if the network was in the IP set (change to
+ * the IP set); false otherwise.
+ */
+bool
+ipset_ipv4_remove_network(struct ip_set *set, struct cork_ipv4 *elem,
+                          unsigned int cidr_prefix);
+
+/**
  * Returns whether the given IPv4 address is in an IP set.
  */
 bool
@@ -167,6 +184,23 @@ ipset_ipv6_add(struct ip_set *set, struct cork_ipv6 *elem);
 bool
 ipset_ipv6_add_network(struct ip_set *set, struct cork_ipv6 *elem,
                        unsigned int cidr_prefix);
+
+/**
+ * Removes a single IPv6 address from an IP set.  Returns true if the address
+ * was in the set (change to the IP set); false otherwise;
+ */
+bool
+ipset_ipv6_remove(struct ip_set *set, struct cork_ipv6 *elem);
+
+/**
+ * Removes a network of IPv6 addresses from an IP set.  All fo the addresses
+ * that start with the first cidr_prefix bits fo elem will be removed from
+ * the set.  Returns true if the network was in the set (change to the
+ * IP set); false otherwise.
+ */
+bool
+ipset_ipv6_remove_network(struct ip_set *set, struct cork_ipv6 *elem,
+                          unsigned int cidr_prefix);
 
 /**
  * Returns whether the given IPv6 address is in an IP set.
@@ -192,6 +226,23 @@ ipset_ip_add(struct ip_set *set, struct cork_ip *addr);
 bool
 ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
                      unsigned int cidr_prefix);
+
+/**
+ * Removes a single generic IP address from an in IP set.  Returns whether
+ * the value was already in the set or not.
+ */
+bool
+ipset_ip_remove(struct ip_set *set, struct cork_ip *addr);
+
+/**
+ * Removes a network of generic IP addresses from an IP set.  All of the
+ * addresses that start with the first cidr_prefix bits of elem will be
+ * removed from the set.  Returns whether the network was in the set or
+ * not.
+ */
+bool
+ipset_ip_remove_network(struct ip_set *set, struct cork_ip *addr,
+                        unsigned int cidr_prefix);
 
 /**
  * Returns whether the given generic IP address is in an IP set.

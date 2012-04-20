@@ -200,6 +200,7 @@ main(int argc, char **argv)
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
             struct cork_ip  addr;
+            bool remove_ip = false;
 
             line_num++;
 
@@ -207,6 +208,18 @@ main(int argc, char **argv)
              * in the first column. */
             if ((line[0] == '#') || (is_string_whitespace(line))) {
                 continue;
+            }
+
+            /* Check for a negating IP address. If so, then shift the
+             * characters in `line` one position to the left. */
+            if (line[0] == '!') {
+                remove_ip = true;
+                int len = strlen(line);
+                int i;
+                for (i = 0; i < len-1; i++) {
+                    line[i] = line[i+1];
+                }
+                line[len-1] = '\0';
             }
 
             /* Chomp the trailing newline so we don't confuse our IP
@@ -249,12 +262,26 @@ main(int argc, char **argv)
             }
 
             /* Add to address to the ipset and update the counters */
+            bool set_changed;
             if (slash_pos == NULL) {
-                ipset_ip_add(&set, &addr);
-                if (addr.version == 4) {
-                    ip_count_v4++;
+                if (remove_ip) {
+                    set_changed = ipset_ip_remove(&set, &addr);
+                    if (set_changed) {
+                        if (addr.version == 4) {
+                            ip_count_v4--;
+                        } else {
+                            ip_count_v6--;
+                        }
+                    }
                 } else {
-                    ip_count_v6++;
+                    set_changed = ipset_ip_add(&set, &addr);
+                    if (set_changed) {
+                        if (addr.version == 4) {
+                            ip_count_v4++;
+                        } else {
+                            ip_count_v6++;
+                        }
+                    }
                 }
             } else {
                 /* If loose-cidr was not a command line option, then check the
@@ -269,7 +296,11 @@ main(int argc, char **argv)
                         continue;
                     }
                 }
-                ipset_ip_add_network(&set, &addr, cidr);
+                if (remove_ip) {
+                    set_changed = ipset_ip_remove_network(&set, &addr, cidr);
+                } else {
+                    set_changed = ipset_ip_add_network(&set, &addr, cidr);
+                }
                 if (cork_error_occurred()) {
                     fprintf(stderr, "Error: Line %zu: Invalid IP address: "
                             "\"%s/%u\": %s\n",
@@ -279,10 +310,18 @@ main(int argc, char **argv)
                     ip_error = true;
                     continue;
                 }
-                if (addr.version == 4) {
-                    ip_count_v4_block++;
-                } else {
-                    ip_count_v6_block++;
+                if (remove_ip && set_changed) {
+                    if (addr.version == 4) {
+                        ip_count_v4_block--;
+                    } else {
+                        ip_count_v6_block--;
+                    }
+                } else if (set_changed) {
+                    if (addr.version == 4) {
+                        ip_count_v4_block++;
+                    } else {
+                        ip_count_v6_block++;
+                    }
                 }
             }
             ip_count++;

@@ -90,3 +90,41 @@ IPSET_NAME(add)(struct ip_set *set, CORK_IP *elem)
     set->set_bdd = new_bdd;
     return result;
 }
+
+
+bool
+IPSET_NAME(remove)(struct ip_set *set, CORK_IP *elem)
+{
+    ipset_node_id  new_bdd =
+        ipset_node_insert
+        (set->cache, set->set_bdd,
+         IPSET_NAME(assignment), elem, IP_BIT_SIZE + 1, 0);
+    bool  result = (new_bdd == set->set_bdd);
+    ipset_node_decref(set->cache, set->set_bdd);
+    set->set_bdd = new_bdd;
+    return result;
+}
+
+
+bool
+IPSET_NAME(remove_network)(struct ip_set *set, CORK_IP *elem,
+                           unsigned int cidr_prefix)
+{
+    /* Special case — the BDD for a netmask that's out of range never
+     * evaluates to true. */
+    if (cidr_prefix > IP_BIT_SIZE) {
+        cork_error_set
+            (IPSET_ERROR, IPSET_PARSE_ERROR,
+             "CIDR block %u out of range [0..%u]", cidr_prefix, IP_BIT_SIZE);
+        return false;
+    }
+
+    ipset_node_id  new_bdd =
+        ipset_node_insert
+        (set->cache, set->set_bdd,
+         IPSET_NAME(assignment), elem, cidr_prefix + 1, 0);
+    bool  result = (new_bdd == set->set_bdd);
+    ipset_node_decref(set->cache, set->set_bdd);
+    set->set_bdd = new_bdd;
+    return result;
+}
