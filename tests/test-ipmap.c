@@ -256,6 +256,40 @@ START_TEST(test_ipv4_insert_network_03)
 }
 END_TEST
 
+START_TEST(test_ipv4_overwrite_01)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
+
+    ipmap_init(&map, 0);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 0);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 0,
+                "Element should be overwritten");
+    ipmap_done(&map);
+}
+END_TEST
+
+START_TEST(test_ipv4_overwrite_02)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
+
+    ipmap_init(&map, 0);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 2);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 2,
+                "Element should be overwritten");
+    ipmap_done(&map);
+}
+END_TEST
+
 START_TEST(test_ipv4_bad_cidr_prefix_01)
 {
     DESCRIBE_TEST;
@@ -761,6 +795,8 @@ ipmap_suite()
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_02);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_03);
+    tcase_add_test(tc_ipv4, test_ipv4_overwrite_01);
+    tcase_add_test(tc_ipv4, test_ipv4_overwrite_02);
     tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_01);
     tcase_add_test(tc_ipv4, test_ipv4_equality_1);
     tcase_add_test(tc_ipv4, test_ipv4_equality_2);
