@@ -221,6 +221,7 @@ main(int argc, char **argv)
         unsigned int  cidr = 0;
 
         while (fgets(line, MAX_LINELENGTH, stream) != NULL) {
+            char  *address;
             struct cork_ip  addr;
             bool  remove_ip = false;
 
@@ -232,27 +233,24 @@ main(int argc, char **argv)
                 continue;
             }
 
-            /* Check for a negating IP address. If so, then shift the
-             * characters in `line` one position to the left. */
+            /* Check for a negating IP address.  If so, then the IP address
+             * starts just after the '!'. */
             if (line[0] == '!') {
                 remove_ip = true;
-                size_t  len = strlen(line);
-                int  i;
-                for (i = 0; i < len-1; i++) {
-                    line[i] = line[i+1];
-                }
-                line[len-1] = '\0';
+                address = line + 1;
+            } else {
+                address = line;
             }
 
             /* Chomp the trailing newline so we don't confuse our IP
              * address parser. */
-            size_t  len = strlen(line);
-            line[len-1] = '\0';
+            size_t  len = strlen(address);
+            address[len-1] = '\0';
 
             /* Check for a / indicating a CIDR block.  If one is
              * present, split the string there and parse the trailing
              * part as a CIDR prefix integer. */
-            if ((slash_pos = strchr(line, '/')) != NULL) {
+            if ((slash_pos = strchr(address, '/')) != NULL) {
                 char  *endptr;
                 *slash_pos = '\0';
                 slash_pos++;
@@ -275,7 +273,7 @@ main(int argc, char **argv)
             }
 
             /* Try to parse the line as an IP address. */
-            if (cork_ip_init(&addr, line) != 0) {
+            if (cork_ip_init(&addr, address) != 0) {
                 fprintf(stderr, "Error: Line %zu: %s\n",
                         line_num, cork_error_message());
                 cork_error_clear();
@@ -293,7 +291,7 @@ main(int argc, char **argv)
                         if (verbosity >= 0) {
                             fprintf(stderr,
                                     "Alert: Line %zu: %s is not in the set\n",
-                                    line_num, line);
+                                    line_num, address);
                         }
                     } else {
                         if (addr.version == 4) {
@@ -308,7 +306,7 @@ main(int argc, char **argv)
                         if (verbosity >= 0) {
                             fprintf(stderr,
                                     "Alert: Line %zu: %s is a duplicate\n",
-                                    line_num, line);
+                                    line_num, address);
                         }
                         ip_count++;
                     } else {
@@ -326,7 +324,7 @@ main(int argc, char **argv)
                     if (!cork_ip_is_valid_network(&addr, cidr)) {
                         fprintf(stderr, "Error: Line %zu: Bad CIDR block: "
                                 "\"%s/%u\"\n",
-                                line_num, line, cidr);
+                                line_num, address, cidr);
                         ip_error_num++;
                         ip_error = true;
                         continue;
@@ -340,7 +338,7 @@ main(int argc, char **argv)
                 if (cork_error_occurred()) {
                     fprintf(stderr, "Error: Line %zu: Invalid IP address: "
                             "\"%s/%u\": %s\n",
-                            line_num, line, cidr, cork_error_message());
+                            line_num, address, cidr, cork_error_message());
                     cork_error_clear();
                     ip_error_num++;
                     ip_error = true;
@@ -351,7 +349,7 @@ main(int argc, char **argv)
                         if (verbosity >= 0) {
                             fprintf(stderr,
                                    "Alert: Line %zu: %s/%u is not in the set\n",
-                                    line_num, line, cidr);
+                                    line_num, address, cidr);
                         }
                     } else {
                         if (addr.version == 4) {
@@ -365,7 +363,7 @@ main(int argc, char **argv)
                         if (verbosity >= 0) {
                             fprintf(stderr,
                                     "Alert: Line %zu: %s/%u is a duplicate\n",
-                                    line_num, line, cidr);
+                                    line_num, address, cidr);
                         }
                         ip_count++;
                     } else {
