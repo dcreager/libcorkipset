@@ -25,6 +25,14 @@ static char  *output_filename = NULL;
 static bool  loose_cidr = false;
 static int  verbosity = 0;
 
+struct removal {
+    size_t  line;
+    const char  *filename;
+    struct cork_ip  address;
+    unsigned int  cidr;
+    bool  has_cidr;
+};
+
 static struct option longopts[] = {
     { "help", no_argument, NULL, 'h' },
     { "output", required_argument, NULL, 'o' },
@@ -70,7 +78,7 @@ USAGE \
 "    option is not given, the only output will be any error, alert, or\n" \
 "    warning messages that occur.\n" \
 "  --quiet, -q\n" \
-"    Show only error message for malformed output. All warnings, alerts,\n" \
+"    Show only error message for malformed input. All warnings, alerts,\n" \
 "    and summary information about the IP set is suppressed.\n" \
 "  --help\n" \
 "    Display this help and exit.\n" \
@@ -167,9 +175,20 @@ main(int argc, char **argv)
 
     /* Read in the IP set files specified on the command line. */
 
-    bool  read_from_stdin = false;
+    size_t  total_ip_added = 0;
+    size_t  total_ip_removed = 0;
+    size_t  total_ip_v4 = 0;
+    size_t  total_ip_v4_block = 0;
+    size_t  total_ip_v6 = 0;
+    size_t  total_ip_v6_block = 0;
     struct ip_set  set;
+    struct removal  *entry;
+    cork_array(struct removal)  removals;
+    bool  read_from_stdin = false;
+    bool  set_unchanged;
+
     ipset_init(&set);
+    cork_array_init(&removals);
 
     int  i;
     for (i = 0; i < argc; i++) {
@@ -184,7 +203,6 @@ main(int argc, char **argv)
                         "ipsetbuild: Cannot read from stdin more than once.\n");
                 exit(1);
             }
-
             if (verbosity > 0) {
                 fprintf(stderr, "Opening stdin...\n\n");
             }
@@ -283,38 +301,27 @@ main(int argc, char **argv)
             }
 
             /* Add to address to the ipset and update the counters */
-            bool  set_unchanged;
             if (slash_pos == NULL) {
                 if (remove_ip) {
-                    set_unchanged = ipset_ip_remove(&set, &addr);
-                    if (set_unchanged) {
-                        if (verbosity >= 0) {
-                            fprintf(stderr,
-                                    "Alert: Line %zu: %s is not in the set\n",
-                                    line_num, address);
-                        }
-                    } else {
-                        if (addr.version == 4) {
-                            ip_count_v4--;
-                        } else {
-                            ip_count_v6--;
-                        }
-                    }
+                    entry = cork_array_append_get(&removals);
+                    entry->line = line_num;
+                    entry->filename = filename;
+                    entry->address = addr;
+                    entry->cidr = 0;
+                    entry->has_cidr = false;
                 } else {
                     set_unchanged = ipset_ip_add(&set, &addr);
-                    if (set_unchanged) {
-                        if (verbosity >= 0) {
-                            fprintf(stderr,
-                                    "Alert: Line %zu: %s is a duplicate\n",
-                                    line_num, address);
-                        }
-                        ip_count++;
+                    if (set_unchanged && verbosity >= 0) {
+                        fprintf(stderr,
+                                "Alert: %s, line %zu: %s is a duplicate\n",
+                                filename, line_num, address);
                     } else {
                         if (addr.version == 4) {
                             ip_count_v4++;
                         } else {
                             ip_count_v6++;
                         }
+                        ip_count++;
                     }
                 }
             } else {
@@ -322,56 +329,45 @@ main(int argc, char **argv)
                  * alignment of the IP address with the CIDR block. */
                 if (!loose_cidr) {
                     if (!cork_ip_is_valid_network(&addr, cidr)) {
-                        fprintf(stderr, "Error: Line %zu: Bad CIDR block: "
+                        fprintf(stderr, "Error: %s, line %zu: Bad CIDR block: "
                                 "\"%s/%u\"\n",
-                                line_num, address, cidr);
+                                filename, line_num, address, cidr);
                         ip_error_num++;
                         ip_error = true;
                         continue;
                     }
                 }
                 if (remove_ip) {
-                    set_unchanged = ipset_ip_remove_network(&set, &addr, cidr);
+                    entry = cork_array_append_get(&removals);
+                    entry->line = line_num;
+                    entry->filename = filename;
+                    entry->address = addr;
+                    entry->cidr = cidr;
+                    entry->has_cidr = true;
                 } else {
                     set_unchanged = ipset_ip_add_network(&set, &addr, cidr);
                 }
                 if (cork_error_occurred()) {
-                    fprintf(stderr, "Error: Line %zu: Invalid IP address: "
-                            "\"%s/%u\": %s\n",
-                            line_num, address, cidr, cork_error_message());
+                    fprintf(stderr, "Error: %s, line %zu: Invalid IP address: "
+                            "\"%s/%u\": %s\n", filename, line_num, address,
+                            cidr, cork_error_message());
                     cork_error_clear();
                     ip_error_num++;
                     ip_error = true;
                     continue;
                 }
-                if (remove_ip) {
-                    if (set_unchanged) {
-                        if (verbosity >= 0) {
-                            fprintf(stderr,
-                                   "Alert: Line %zu: %s/%u is not in the set\n",
-                                    line_num, address, cidr);
-                        }
-                    } else {
-                        if (addr.version == 4) {
-                            ip_count_v4_block--;
-                        } else {
-                            ip_count_v6_block--;
-                        }
-                    }
-                } else {
-                    if (set_unchanged) {
-                        if (verbosity >= 0) {
-                            fprintf(stderr,
-                                    "Alert: Line %zu: %s/%u is a duplicate\n",
-                                    line_num, address, cidr);
-                        }
-                        ip_count++;
+                if (!remove_ip) {
+                    if (set_unchanged && verbosity >= 0) {
+                        fprintf(stderr,
+                                "Alert: %s, line %zu: %s/%u is a duplicate\n",
+                                filename, line_num, address, cidr);
                     } else {
                         if (addr.version == 4) {
                             ip_count_v4_block++;
                         } else {
                             ip_count_v6_block++;
                         }
+                        ip_count++;
                     }
                 }
             }
@@ -394,6 +390,13 @@ main(int argc, char **argv)
                     ip_count_v6_block, (ip_count_v6_block == 1)? "": "s");
         }
 
+        /* Update the total IP counters. */
+        total_ip_added += ip_count;
+        total_ip_v4 += ip_count_v4;
+        total_ip_v4_block += ip_count_v4_block;
+        total_ip_v6 += ip_count_v6;
+        total_ip_v6_block += ip_count_v6_block;
+
         /* Free the streams before opening the next file. */
         if (close_stream) {
             fclose(stream);
@@ -401,13 +404,70 @@ main(int argc, char **argv)
 
         /* If the input file has errors, then terminate the program. */
         if (ip_error) {
-            fprintf(stderr, "The program halted with %zu input error%s.\n",
-                    ip_error_num, (ip_error_num == 1)? "": "s");
+            fprintf(stderr, "The program halted on %s with %zu "
+                    "input error%s.\n",
+                    filename, ip_error_num, (ip_error_num == 1)? "": "s");
             exit(1);
         }
     }
 
+    /* Combine the removals array with the set */
+    size_t  removal_count = cork_array_size(&removals);
+    for (i = 0; i < removal_count; i++) {
+        entry = &cork_array_at(&removals, i);
+        if (entry->has_cidr == true) {
+            set_unchanged =
+                ipset_ip_remove_network(&set, &entry->address, entry->cidr);
+            if (set_unchanged) {
+                if (verbosity >= 0) {
+                    char  ip_buf[CORK_IP_STRING_LENGTH];
+                    cork_ip_to_raw_string(&entry->address, ip_buf);
+                    fprintf(stderr,
+                            "Alert: %s, line %zu: %s/%u is not in the set\n",
+                            entry->filename, entry->line, ip_buf, entry->cidr);
+                }
+            } else {
+                if (entry->address.version == 4) {
+                    total_ip_v4_block--;
+                } else {
+                    total_ip_v6_block--;
+                }
+                total_ip_removed++;
+            }
+        } else {
+            set_unchanged = ipset_ip_remove(&set, &entry->address);
+            if (set_unchanged) {
+                if (verbosity >= 0) {
+                    char  ip_buf[CORK_IP_STRING_LENGTH];
+                    cork_ip_to_raw_string(&entry->address, ip_buf);
+                    fprintf(stderr,
+                            "Alert: %s, line %zu: %s is not in the set\n",
+                            entry->filename, entry->line, ip_buf);
+                }
+            } else {
+                if (entry->address.version == 4) {
+                    total_ip_v4--;
+                } else {
+                    total_ip_v6--;
+                }
+                total_ip_removed++;
+            }
+        }
+    }
+    cork_array_done(&removals);
+
+    /* Print the total counter values and set size. */
     if (verbosity > 0) {
+        fprintf(stderr, "\nSummary: %zu valid IP address records found.\n",
+                total_ip_added + total_ip_removed);
+        fprintf(stderr, "  Total records added: %zu\n", total_ip_added);
+        fprintf(stderr, "  Total records removed: %zu\n", total_ip_removed);
+        fprintf(stderr, "  IPv4: %zu addresses, %zu complete block%s\n",
+                total_ip_v4, total_ip_v4_block,
+                (total_ip_v4_block == 1)? "": "s");
+        fprintf(stderr, "  IPv6: %zu addresses, %zu complete block%s\n",
+                total_ip_v6, total_ip_v6_block,
+                (total_ip_v6_block == 1)? "": "s");
         fprintf(stderr, "Set uses %zu bytes of memory.\n",
                 ipset_memory_size(&set));
     }
