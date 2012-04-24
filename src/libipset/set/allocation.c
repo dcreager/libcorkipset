@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -8,57 +8,42 @@
  * ----------------------------------------------------------------------
  */
 
-#include <glib.h>
+#include <libcork/core.h>
 
-#include <ipset/bdd/nodes.h>
-#include <ipset/ipset.h>
-#include <ipset/internal.h>
+#include "ipset/bdd/nodes.h"
+#include "ipset/ipset.h"
 
 
 void
-ipset_init(ip_set_t *set)
+ipset_init(struct ip_set *set)
 {
-    /*
-     * The set starts empty, so every value assignment should yield
-     * false.
-     */
-
-    set->set_bdd = ipset_node_cache_terminal(ipset_cache, FALSE);
+    /* The set starts empty, so every value assignment should yield
+     * false. */
+    set->cache = ipset_node_cache_new();
+    set->set_bdd = ipset_terminal_node_id(false);
 }
 
 
-ip_set_t *
-ipset_new()
+struct ip_set *
+ipset_new(void)
 {
-    ip_set_t  *result = NULL;
-
-    /*
-     * Try to allocate a new set.
-     */
-
-    result = g_slice_new(ip_set_t);
-    if (result == NULL)
-        return NULL;
-
-    /*
-     * If that worked, initialize and return the set.
-     */
-
+    struct ip_set  *result = cork_new(struct ip_set);
     ipset_init(result);
     return result;
 }
 
 
 void
-ipset_done(ip_set_t *set)
+ipset_done(struct ip_set *set)
 {
-    /* nothing to do */
+    ipset_node_decref(set->cache, set->set_bdd);
+    ipset_node_cache_free(set->cache);
 }
 
 
 void
-ipset_free(ip_set_t *set)
+ipset_free(struct ip_set *set)
 {
     ipset_done(set);
-    g_slice_free(ip_set_t, set);
+    free(set);
 }
