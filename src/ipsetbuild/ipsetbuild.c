@@ -85,29 +85,29 @@ USAGE \
 "    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx\n" \
 "    xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/cidr\n" \
 "\n" \
-"    The first two are for IPv4 addresses and networks; the second two for\n" \
-"    IPv6 addresses and networks.  For IPv6 addresses, you can use the \"::\"\n" \
-"    shorthand notation to collapse consecutive \"0\" portions.\n" \
+"  The first two are for IPv4 addresses and networks; the second two for\n" \
+"  IPv6 addresses and networks.  For IPv6 addresses, you can use the \"::\"\n" \
+"  shorthand notation to collapse consecutive \"0\" portions.\n" \
 "\n" \
-"    If an address contains a \"/cidr\" suffix, then the entire CIDR network\n" \
-"    of addresses will be added to the set.  You must ensure that the low-\n" \
-"    order bits of the address are set to 0; if not, we'll raise an error.\n" \
-"    (If you pass in the \"--loose-cidr\" option, we won't perform this\n" \
-"    sanity check.)\n" \
+"  If an address contains a \"/cidr\" suffix, then the entire CIDR network\n" \
+"  of addresses will be added to the set.  You must ensure that the low-\n" \
+"  order bits of the address are set to 0; if not, we'll raise an error.\n" \
+"  (If you pass in the \"--loose-cidr\" option, we won't perform this\n" \
+"  sanity check.)\n" \
 "\n" \
-"    You can also prefix any input line with an exclamation point (\"!\").\n" \
-"    This causes the given address or network to be REMOVED from the output\n" \
-"    set.  This notation can be useful to define a set that contains most of\n" \
-"    the addresses in a large CIDR block, except for addresses at certain\n" \
-"    \"holes\".\n" \
+"  You can also prefix any input line with an exclamation point (\"!\").\n" \
+"  This causes the given address or network to be REMOVED from the output\n" \
+"  set.  This notation can be useful to define a set that contains most of\n" \
+"  the addresses in a large CIDR block, except for addresses at certain\n" \
+"  \"holes\".\n" \
 "\n" \
-"    The order of the addresses and networks given to ipsetbuild does not\n" \
-"    matter.  If a particular address is added to the set more than once, or\n" \
-"    removed from the set more than once, whether on its own or via a CIDR\n" \
-"    network, then you will get a warning message.  (You can silence these\n" \
-"    warnings with the --quiet option.)  If an address is both added to and\n" \
-"    removed from the set, then the removal takes precedence, regardless of\n" \
-"    where the relevant lines appear in the input file.\n"
+"  The order of the addresses and networks given to ipsetbuild does not\n" \
+"  matter.  If a particular address is added to the set more than once, or\n" \
+"  removed from the set more than once, whether on its own or via a CIDR\n" \
+"  network, then you will get a warning message.  (You can silence these\n" \
+"  warnings with the --quiet option.)  If an address is both added to and\n" \
+"  removed from the set, then the removal takes precedence, regardless of\n" \
+"  where the relevant lines appear in the input file.\n"
 
 
 int
