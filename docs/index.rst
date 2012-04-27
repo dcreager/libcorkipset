@@ -13,6 +13,9 @@ Contents
 .. toctree::
    :maxdepth: 2
 
+   sets
+   maps
+   file-format
 
 
 Indices and tables
