@@ -15,6 +15,7 @@ Contents
 
    sets
    maps
+   commands
    file-format
 
 
