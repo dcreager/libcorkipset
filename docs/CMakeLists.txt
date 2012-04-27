@@ -46,11 +46,7 @@ if (GENERATE_DOC)
   set(SPHINX_CACHE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_doctrees")
   set(SPHINX_HTML_DIR "${CMAKE_CURRENT_BINARY_DIR}/html")
 
-  # If your Sphinx documentation references the Sphinx documentation of
-  # any of your prerequisite libraries, add some calls to
-  # find_prereq_doc here:
-  #
-  # find_prereq_doc(libcork)
+  find_prereq_doc(libcork)
 
   set(
     VERSION_FOR_CONF_PY
