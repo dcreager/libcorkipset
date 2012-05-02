@@ -185,7 +185,7 @@ main(int argc, char **argv)
     struct removal  *entry;
     cork_array(struct removal)  removals;
     bool  read_from_stdin = false;
-    bool  set_unchanged;
+    bool  set_unchanged = false;
 
     ipset_init(&set);
     cork_array_init(&removals);
