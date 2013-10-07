@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------
-# Copyright © 2011, RedJack, LLC.
+# Copyright © 2011-2013, RedJack, LLC.
 # All rights reserved.
 #
 # Please see the LICENSE.txt file in this distribution for license
@@ -33,7 +33,7 @@ string(REGEX REPLACE "-dev.*" "-dev" BASE_VERSION "${VERSION}")
 
 find_package(PkgConfig)
 
-pkg_check_modules(CORK REQUIRED "libcork >= 0.6.0")
+pkg_check_modules(CORK REQUIRED "libcork >= 0.12.0")
 include_directories(${CORK_INCLUDE_DIRS})
 link_directories(${CORK_LIBRARY_DIRS})
 

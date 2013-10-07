@@ -9,6 +9,6 @@ Name: ipset
 Description: Library for storing IP sets and maps
 Version: @VERSION@
 URL: http://github.com/dcreager/ipset/
-Requires: libcork >= 0.5.0
+Requires: libcork >= 0.12.0
 Libs: -L${libdir} -lipset
 Cflags: -I${includedir}
