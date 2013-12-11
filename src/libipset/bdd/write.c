@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010-2012, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -80,19 +80,6 @@ typedef int
                           serialized_id serialized_high);
 
 
-static cork_hash
-constant_hasher(const void *key)
-{
-    return (uintptr_t) key;
-}
-
-static bool
-constant_comparator(const void *key1, const void *key2)
-{
-    return key1 == key2;
-}
-
-
 /**
  * A helper struct containing all of the persistent data items needed
  * during the execution of a save.
@@ -107,7 +94,7 @@ struct save_data {
 
     /* The cache of serialized IDs for any nonterminals that we've
      * encountered so far. */
-    struct cork_hash_table  serialized_ids;
+    struct cork_hash_table  *serialized_ids;
 
     /* The serialized ID to use for the next nonterminal that we
      * encounter. */
@@ -146,7 +133,7 @@ save_visit_node(struct save_data *save_data,
     struct cork_hash_table_entry  *entry;
     bool  is_new;
     entry = cork_hash_table_get_or_create
-        (&save_data->serialized_ids, (void *) (uintptr_t) node_id, &is_new);
+        (save_data->serialized_ids, (void *) (uintptr_t) node_id, &is_new);
 
     if (!is_new) {
         *dest = (intptr_t) entry->value;
@@ -210,8 +197,7 @@ save_bdd(struct save_data *save_data,
      * mapping from internal node ID to serialized node ID. */
 
     DEBUG("Creating file caches");
-    cork_hash_table_init
-        (&save_data->serialized_ids, 0, constant_hasher, constant_comparator);
+    save_data->serialized_ids = cork_pointer_hash_table_new(0, 0);
     save_data->next_serialized_id = -1;
 
     /* Trace down through the BDD tree, outputting each terminal and
@@ -228,13 +214,13 @@ save_bdd(struct save_data *save_data,
     ei_check(save_data->write_footer(save_data, cache, root));
 
     DEBUG("Freeing file caches");
-    cork_hash_table_done(&save_data->serialized_ids);
+    cork_hash_table_free(save_data->serialized_ids);
     return 0;
 
   error:
     /* If there's an error, clean up the objects that we've created
      * before returning. */
-    cork_hash_table_done(&save_data->serialized_ids);
+    cork_hash_table_free(save_data->serialized_ids);
     return -1;
 }
 
