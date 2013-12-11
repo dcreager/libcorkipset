@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010-2012, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -31,7 +31,7 @@ ipset_node_fprint(FILE *stream, struct ipset_node *node)
 
 
 static cork_hash
-ipset_node_hasher(const void *key)
+ipset_node_hash(void *user_data, const void *key)
 {
     const struct ipset_node  *node = key;
     /* Hash of "ipset_node" */
@@ -43,7 +43,7 @@ ipset_node_hasher(const void *key)
 }
 
 static bool
-ipset_node_comparator(const void *key1, const void *key2)
+ipset_node_equals(void *user_data, const void *key1, const void *key2)
 {
     const struct ipset_node  *node1 = key1;
     const struct ipset_node  *node2 = key2;
@@ -73,8 +73,11 @@ ipset_node_cache_new()
     cork_array_init(&cache->chunks);
     cache->largest_index = 0;
     cache->free_list = IPSET_NULL_INDEX;
-    cork_hash_table_init
-        (&cache->node_cache, 0, ipset_node_hasher, ipset_node_comparator);
+    cache->node_cache = cork_hash_table_new(0, 0);
+    cork_hash_table_set_hash
+        (cache->node_cache, (cork_hash_f) ipset_node_hash);
+    cork_hash_table_set_equals
+        (cache->node_cache, (cork_equals_f) ipset_node_equals);
     return cache;
 }
 
@@ -86,7 +89,7 @@ ipset_node_cache_free(struct ipset_node_cache *cache)
         free(cork_array_at(&cache->chunks, i));
     }
     cork_array_done(&cache->chunks);
-    cork_hash_table_done(&cache->node_cache);
+    cork_hash_table_free(cache->node_cache);
     free(cache);
 }
 
@@ -147,7 +150,7 @@ ipset_node_decref(struct ipset_node_cache *cache, ipset_node_id node_id)
                   IPSET_NODE_ID_VALUES(node_id));
             ipset_node_decref(cache, node->low);
             ipset_node_decref(cache, node->high);
-            cork_hash_table_delete(&cache->node_cache, node, NULL, NULL);
+            cork_hash_table_delete(cache->node_cache, node, NULL, NULL);
 
             /* Add the node to the free list */
             node->refcount = cache->free_list;
@@ -210,7 +213,7 @@ ipset_node_cache_nonterminal(struct ipset_node_cache *cache,
     bool  is_new;
     struct cork_hash_table_entry  *entry =
         cork_hash_table_get_or_create
-        (&cache->node_cache, &search_node, &is_new);
+        (cache->node_cache, &search_node, &is_new);
 
     if (!is_new) {
         /* There's already a node with these contents, so return its ID. */

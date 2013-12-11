@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010-2012, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -154,7 +154,7 @@ struct ipset_node_cache {
     /** The index of the first node in the free list. */
     ipset_value  free_list;
     /** A cache of the nonterminal nodes, keyed by their contents. */
-    struct cork_hash_table  node_cache;
+    struct cork_hash_table  *node_cache;
 };
 
 /**

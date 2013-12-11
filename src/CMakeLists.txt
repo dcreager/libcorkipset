@@ -64,8 +64,8 @@ set(LIBIPSET_SRC
 add_library(libipset SHARED ${LIBIPSET_SRC})
 set_target_properties(libipset PROPERTIES
     OUTPUT_NAME ipset
-    VERSION 0.0.0
-    SOVERSION 0)
+    VERSION 1.1.0
+    SOVERSION 1)
 target_link_libraries(libipset
     ${CORK_LIBRARIES}
 )

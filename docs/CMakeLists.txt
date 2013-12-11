@@ -10,8 +10,8 @@
 # Fill in this with the text that you want to include in the header and footer
 # of each man page.
 
-set(MAN_HEADER "Ipset documentation")
-set(MAN_FOOTER "Ipset")
+set(MAN_HEADER "ipset documentation")
+set(MAN_FOOTER "ipset")
 
 # Fill this in with any man pages that should be built from a pandoc source
 # file.  For a man page called foo.5, there should be a pandoc source file

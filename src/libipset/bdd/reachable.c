@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010-2012, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -15,25 +15,12 @@
 #include "ipset/logging.h"
 
 
-static cork_hash
-constant_hasher(const void *key)
-{
-    return (uintptr_t) key;
-}
-
-static bool
-constant_comparator(const void *key1, const void *key2)
-{
-    return key1 == key2;
-}
-
 size_t
 ipset_node_reachable_count(const struct ipset_node_cache *cache,
                            ipset_node_id node)
 {
     /* Create a set to track when we've visited a given node. */
-    struct cork_hash_table  visited;
-    cork_hash_table_init(&visited, 0, constant_hasher, constant_comparator);
+    struct cork_hash_table  *visited = cork_pointer_hash_table_new(0, 0);
 
     /* And a queue of nodes to check. */
     cork_array(ipset_node_id)  queue;
@@ -53,12 +40,12 @@ ipset_node_reachable_count(const struct ipset_node_cache *cache,
 
         /* We don't have to do anything if this node is already in the
          * visited set. */
-        if (cork_hash_table_get(&visited, (void *) (uintptr_t) curr) == NULL) {
+        if (cork_hash_table_get(visited, (void *) (uintptr_t) curr) == NULL) {
             DEBUG("Visiting node %u for the first time", curr);
 
             /* Add the node to the visited set. */
             cork_hash_table_put
-                (&visited, (void *) (uintptr_t) curr,
+                (visited, (void *) (uintptr_t) curr,
                  (void *) (uintptr_t) true, NULL, NULL, NULL);
 
             /* Increase the node count. */
@@ -82,7 +69,7 @@ ipset_node_reachable_count(const struct ipset_node_cache *cache,
     }
 
     /* Return the result, freeing everything before we go. */
-    cork_hash_table_done(&visited);
+    cork_hash_table_free(visited);
     cork_array_done(&queue);
     return node_count;
 }

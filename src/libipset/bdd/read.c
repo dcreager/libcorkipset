@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010-2012, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -145,31 +145,15 @@ verify_cap(size_t bytes_read, size_t cap)
     return 0;
 }
 
-
-static cork_hash
-constant_hasher(const void *key)
-{
-    return (uintptr_t) key;
-}
-
-static bool
-constant_comparator(const void *key1, const void *key2)
-{
-    return key1 == key2;
-}
-
-
 /**
  * A helper function for reading a version 1 BDD stream.
  */
 static ipset_node_id
 load_v1(FILE *stream, struct ipset_node_cache *cache)
 {
-    ipset_node_id  result;
-    struct cork_hash_table  cache_ids;
-
     DEBUG("Stream contains v1 IP set");
-    cork_hash_table_init(&cache_ids, 0, constant_hasher, constant_comparator);
+    ipset_node_id  result;
+    struct cork_hash_table  *cache_ids = cork_pointer_hash_table_new(0, 0);
 
     /* We've already read in the magic number and version.  Next should
      * be the length of the encoded set. */
@@ -209,7 +193,7 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
         ei_check(verify_cap(bytes_read, cap));
 
         /* Create a terminal node for this value and return it. */
-        cork_hash_table_done(&cache_ids);
+        cork_hash_table_free(cache_ids);
         return ipset_terminal_node_id(value);
     }
 
@@ -255,7 +239,7 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
              * this node. */
 
             low_id = (ipset_node_id) (uintptr_t)
-                cork_hash_table_get(&cache_ids, (void *) (intptr_t) low);
+                cork_hash_table_get(cache_ids, (void *) (intptr_t) low);
 
             DEBUG("  Serialized ID %" PRId32 " is internal ID %u",
                   low, low_id);
@@ -274,7 +258,7 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
              * this node. */
 
             high_id = (ipset_node_id) (uintptr_t)
-                cork_hash_table_get(&cache_ids, (void *) (intptr_t) high);
+                cork_hash_table_get(cache_ids, (void *) (intptr_t) high);
 
             DEBUG("  Serialized ID %" PRId32 " is internal ID %u",
                   high, high_id);
@@ -291,7 +275,7 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
          * later serialized nodes point to it. */
 
         cork_hash_table_put
-            (&cache_ids, (void *) (intptr_t) serialized_id,
+            (cache_ids, (void *) (intptr_t) serialized_id,
              (void *) (uintptr_t) result, NULL, NULL, NULL);
     }
 
@@ -299,14 +283,14 @@ load_v1(FILE *stream, struct ipset_node_cache *cache)
     ei_check(verify_cap(bytes_read, cap));
 
     /* The last node is the nonterminal for the entire set. */
-    cork_hash_table_done(&cache_ids);
+    cork_hash_table_free(cache_ids);
     return result;
 
   error:
     /* If there's an error, clean up the objects that we've created
      * before returning. */
 
-    cork_hash_table_done(&cache_ids);
+    cork_hash_table_free(cache_ids);
     return 0;
 }
 
