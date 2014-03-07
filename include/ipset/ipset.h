@@ -78,6 +78,9 @@ ipset_save_dot(FILE *stream, const struct ip_set *set);
 struct ip_set *
 ipset_load(FILE *stream);
 
+struct ip_set *
+ipset_read_text_file(const char *filename);
+
 bool
 ipset_ipv4_add(struct ip_set *set, struct cork_ipv4 *elem);
 
