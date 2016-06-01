@@ -14,6 +14,7 @@ link_directories(${CMAKE_CURRENT_BINARY_DIR}/../src)
 # Check for prerequisite libraries
 
 find_package(PkgConfig)
+find_package(Threads)
 
 pkg_check_modules(CHECK REQUIRED check)
 include_directories(${CHECK_INCLUDE_DIRS})
@@ -24,7 +25,7 @@ link_directories(${CHECK_LIBRARY_DIRS})
 
 macro(make_test test_name)
     add_executable(${test_name} ${test_name}.c)
-    target_link_libraries(${test_name} ${CHECK_LIBRARIES} libipset)
+    target_link_libraries(${test_name} ${CHECK_LIBRARIES} libipset ${CMAKE_THREAD_LIBS_INIT})
     add_test(${test_name} ${test_name})
 endmacro(make_test)
 
