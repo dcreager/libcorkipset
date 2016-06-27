@@ -28,6 +28,7 @@ set(LIBIPSET_SRC
     libipset/map/ipv6_map.c
     libipset/map/storage.c
     libipset/set/allocation.c
+    libipset/set/read-file.c
     libipset/set/inspection.c
     libipset/set/ipv4_set.c
     libipset/set/ipv6_set.c
