@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+mkdir .build
+cd .build
+
+if [ "$TRAVIS_OS_NAME" = linux ]; then
+    if [ "$ARCH" = i386 ]; then
+        ARCH_FLAGS="-m32"
+        export PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig
+    else
+        ARCH_FLAGS=""
+    fi
+elif [ "$TRAVIS_OS_NAME" = osx ]; then
+    if [ "$ARCH" = i386 ]; then
+        ARCH_FLAGS="-arch i386"
+    else
+        ARCH_FLAGS="-arch x86_64"
+    fi
+fi
+
+cmake .. \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_C_FLAGS_RELWITHDEBINFO="-g -O3 $ARCH_FLAGS"
+make
+make test
