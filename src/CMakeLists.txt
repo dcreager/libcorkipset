@@ -95,7 +95,7 @@ set(IPSETDOT_SRC
     ipsetdot/ipsetdot.c
 )
 
-add_executable(ipsetdot ${IPSETBUILD_SRC})
+add_executable(ipsetdot ${IPSETDOT_SRC})
 target_link_libraries(ipsetdot libipset)
 install(TARGETS ipsetdot DESTINATION bin)
 
