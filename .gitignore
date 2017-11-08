@@ -1,9 +1,5 @@
-/.lock-wscript
-/.waf*/
-/*.py[co]
 /build/
-
-RELEASE-VERSION
+/.build/
 
 /ipset*.tar.gz
 /ipset*.tar.bz2
@@ -12,3 +8,5 @@ RELEASE-VERSION
 *.os
 *.so
 *.dylib
+
+!.travis.yml

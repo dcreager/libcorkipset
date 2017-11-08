@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -13,513 +13,253 @@
 
 #include <stdio.h>
 
-#include <glib.h>
+#include <libcork/core.h>
+#include <libcork/ds.h>
 
-#include <ipset/ip.h>
-#include <ipset/internal.h>
-
-
-typedef struct ip_set
-{
-    ipset_node_id_t  set_bdd;
-} ip_set_t;
+#include <ipset/bdd/nodes.h>
 
 
-typedef struct ip_map
-{
-    ipset_node_id_t  map_bdd;
-    ipset_node_id_t  default_bdd;
-} ip_map_t;
+struct ip_set {
+    struct ipset_node_cache  *cache;
+    ipset_node_id  set_bdd;
+};
+
+
+struct ip_map {
+    struct ipset_node_cache  *cache;
+    ipset_node_id  map_bdd;
+    ipset_node_id  default_bdd;
+};
 
 
 /*---------------------------------------------------------------------
  * General functions
  */
 
-/**
- * Initializes the library.  Must be called before any other ipset
- * function.  Can safely be called multiple times.
- */
-
-int ipset_init_library();
+int
+ipset_init_library(void);
 
 
 /*---------------------------------------------------------------------
  * IP set functions
  */
 
-/**
- * Initializes a new IP set that has already been allocated (on the
- * stack, for instance).  After returning, the set will be empty.
- */
+void
+ipset_init(struct ip_set *set);
 
 void
-ipset_init(ip_set_t *set);
+ipset_done(struct ip_set *set);
 
-/**
- * Finalize an IP set, freeing any space used to represent the set
- * internally.  Doesn't deallocate the ip_set_t itself, so this is
- * safe to call on stack-allocated sets.
- */
+struct ip_set *
+ipset_new(void);
 
 void
-ipset_done(ip_set_t *set);
+ipset_free(struct ip_set *set);
 
-/**
- * Creates a new empty IP set on the heap.  Returns NULL if we can't
- * allocate a new instance.
- */
+bool
+ipset_is_empty(const struct ip_set *set);
 
-ip_set_t *
-ipset_new();
+bool
+ipset_is_equal(const struct ip_set *set1, const struct ip_set *set2);
 
-/**
- * Finalize and free a heap-allocated IP set, freeing any space used
- * to represent the set internally.
- */
+size_t
+ipset_memory_size(const struct ip_set *set);
 
-void
-ipset_free(ip_set_t *set);
+int
+ipset_save(FILE *stream, const struct ip_set *set);
 
-/**
- * Returns whether the IP set is empty.
- */
+int
+ipset_save_to_stream(struct cork_stream_consumer *stream,
+                     const struct ip_set *set);
 
-gboolean
-ipset_is_empty(ip_set_t *set);
+int
+ipset_save_dot(FILE *stream, const struct ip_set *set);
 
-/**
- * Returns whether two IP sets are equal.
- */
+struct ip_set *
+ipset_load(FILE *stream);
 
-gboolean
-ipset_is_equal(ip_set_t *set1, ip_set_t *set2);
+bool
+ipset_ipv4_add(struct ip_set *set, struct cork_ipv4 *elem);
 
-/**
- * Returns whether two IP sets are not equal.
- */
+bool
+ipset_ipv4_add_network(struct ip_set *set, struct cork_ipv4 *elem,
+                       unsigned int cidr_prefix);
 
-gboolean
-ipset_is_not_equal(ip_set_t *set1, ip_set_t *set2);
+bool
+ipset_ipv4_remove(struct ip_set *set, struct cork_ipv4 *elem);
 
-/**
- * Returns the number of bytes needed to store the IP set.  Note that
- * adding together the storage needed for each set you use doesn't
- * necessarily give you the total memory requirements, since some
- * storage can be shared between sets.
- */
+bool
+ipset_ipv4_remove_network(struct ip_set *set, struct cork_ipv4 *elem,
+                          unsigned int cidr_prefix);
 
-gsize
-ipset_memory_size(ip_set_t *set);
+bool
+ipset_contains_ipv4(const struct ip_set *set, struct cork_ipv4 *elem);
 
-/**
- * Saves an IP set to disk.  Returns a boolean indicating whether the
- * operation was successful.
- */
+bool
+ipset_ipv6_add(struct ip_set *set, struct cork_ipv6 *elem);
 
-gboolean
-ipset_save(FILE *stream,
-           ip_set_t *set,
-           GError **err);
+bool
+ipset_ipv6_add_network(struct ip_set *set, struct cork_ipv6 *elem,
+                       unsigned int cidr_prefix);
 
-/**
- * Saves a GraphViz dot graph for an IP set to disk.  Returns a
- * boolean indicating whether the operation was successful.
- */
+bool
+ipset_ipv6_remove(struct ip_set *set, struct cork_ipv6 *elem);
 
-gboolean
-ipset_save_dot(FILE *stream,
-               ip_set_t *set,
-               GError **err);
+bool
+ipset_ipv6_remove_network(struct ip_set *set, struct cork_ipv6 *elem,
+                          unsigned int cidr_prefix);
 
-/**
- * Loads an IP set from a stream.  Returns NULL if the set cannot be
- * loaded.
- */
+bool
+ipset_contains_ipv6(const struct ip_set *set, struct cork_ipv6 *elem);
 
-ip_set_t *
-ipset_load(FILE *stream,
-           GError **err);
+bool
+ipset_ip_add(struct ip_set *set, struct cork_ip *addr);
 
-/**
- * Adds a single IPv4 address to an IP set.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 32-bit big-endian integer.
- *
- * Returns whether the value was already in the set or not.
- */
+bool
+ipset_ip_add_network(struct ip_set *set, struct cork_ip *addr,
+                     unsigned int cidr_prefix);
 
-gboolean
-ipset_ipv4_add(ip_set_t *set, gpointer elem);
+bool
+ipset_ip_remove(struct ip_set *set, struct cork_ip *addr);
 
-/**
- * Adds a network of IPv4 addresses to an IP set.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 32-bit big-endian integer.  All
- * of the addresses that start with the first netmask bits of elem
- * will be added to the set.
- *
- * Returns whether the network was already in the set or not.
- */
+bool
+ipset_ip_remove_network(struct ip_set *set, struct cork_ip *addr,
+                        unsigned int cidr_prefix);
 
-gboolean
-ipset_ipv4_add_network(ip_set_t *set, gpointer elem, guint netmask);
-
-/**
- * Adds a single IPv6 address to an IP set.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 128-bit big-endian integer.
- *
- * Returns whether the value was already in the set or not.
- */
-
-gboolean
-ipset_ipv6_add(ip_set_t *set, gpointer elem);
-
-/**
- * Adds a network of IPv6 addresses to an IP set.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 128-bit big-endian integer.  All
- * of the addresses that start with the first netmask bits of elem
- * will be added to the set.
- *
- * Returns whether the network was already in the set or not.
- */
-
-gboolean
-ipset_ipv6_add_network(ip_set_t *set, gpointer elem, guint netmask);
-
-/**
- * Adds a single generic IP address to an IP set.
- *
- * Returns whether the value was already in the set or not.
- */
-
-gboolean
-ipset_ip_add(ip_set_t *set, ipset_ip_t *addr);
-
-/**
- * Adds a network of generic IP addresses to an IP set.  All of the
- * addresses that start with the first netmask bits of elem will be
- * added to the set.
- *
- * Returns whether the network was already in the set or not.
- */
-
-gboolean
-ipset_ip_add_network(ip_set_t *set, ipset_ip_t *addr, guint netmask);
+bool
+ipset_contains_ip(const struct ip_set *set, struct cork_ip *elem);
 
 
-/**
- * An internal state type used by the
- * ipset_iterator_t.multiple_expansion_state field.
- */
-
-typedef enum ipset_iterator_state
-{
+/* An internal state type used by the ipset_iterator_multiple_expansion_state
+ * field. */
+enum ipset_iterator_state {
     IPSET_ITERATOR_NORMAL = 0,
     IPSET_ITERATOR_MULTIPLE_IPV4,
     IPSET_ITERATOR_MULTIPLE_IPV6
-} ipset_iterator_state_t;
+};
 
 
-/**
- * An iterator that returns all of the IP addresses that are (or are
- * not) in an IP set.
- */
+/* An iterator that returns all of the IP addresses that have a given value in
+ * an IP set or map. */
+struct ipset_iterator {
+    /* The address of the current IP network in the iterator. */
+    struct cork_ip  addr;
 
-typedef struct ipset_iterator
-{
-    /**
-     * Whether there are any more IP addresses in this iterator.
-     */
+    /* The netmask of the current IP network in the iterator, given as a
+     * CIDR prefix.  For a single IP address, this will be 32 or 128. */
+    unsigned int  cidr_prefix;
 
-    gboolean finished;
-
-    /**
-     * The desired value for each IP address.
-     */
-
-    gboolean  desired_value;
-
-    /**
-     * Whether to summarize the contents of the IP set as networks,
-     * where possible.
-     */
-
-    gboolean  summarize;
-
-    /**
-     * Whether the current assignment needs to be expanded a second
+    /* Whether the current assignment needs to be expanded a second
      * time.
      *
-     * We have to expand IPv4 and IPv6 assignments separately, since
-     * the set of variables to turn into address bits is different.
+     * We have to expand IPv4 and IPv6 assignments separately, since the
+     * set of variables to turn into address bits is different.
      * Unfortunately, a BDD assignment can contain both IPv4 and IPv6
-     * addresses, if variable 0 is EITHER.  (This is trivially true
-     * for the empty set, for instance.)  In this case, we have to
+     * addresses, if variable 0 is EITHER.  (This is trivially true for
+     * the empty set, for instance.)  In this case, we have to
      * explicitly set variable 0 to TRUE, expand it as IPv4, and then
      * set it to FALSE, and expand it as IPv6.  This variable tells us
      * whether we're in an assignment that needs to be expanded twice,
      * and if so, which expansion we're currently in.
      */
+    enum ipset_iterator_state  multiple_expansion_state;
 
-    ipset_iterator_state_t  multiple_expansion_state;
+    /* An iterator for retrieving each assignment in the set's BDD. */
+    struct ipset_bdd_iterator  *bdd_iterator;
 
-    /**
-     * An iterator for retrieving each assignment in the set's BDD.
-     */
+    /* An iterator for expanding each assignment into individual IP
+     * addresses. */
+    struct ipset_expanded_assignment  *assignment_iterator;
 
-    ipset_bdd_iterator_t  *bdd_iterator;
+    /* Whether there are any more IP addresses in this iterator. */
+    bool  finished;
 
-    /**
-     * An iterator for expanding each assignment into individual IP
-     * addresses.
-     */
+    /* The desired value for each IP address. */
+    bool  desired_value;
 
-    ipset_expanded_assignment_t  *assignment_iterator;
-
-    /**
-     * The address of the current IP network in the iterator.
-     */
-
-    ipset_ip_t  addr;
-
-    /**
-     * The netmask of the current IP network in the iterator.  For a
-     * single IP address, this will be 32 or 128.
-     */
-
-    guint  netmask;
-
-} ipset_iterator_t;
+    /* Whether to summarize the contents of the IP set as networks,
+     * where possible. */
+    bool  summarize;
+};
 
 
-/**
- * Return an iterator that yields all of the IP addresses that are (if
- * desired_value is TRUE) or are not (if desired_value is FALSE) in an
- * IP set.
- */
+struct ipset_iterator *
+ipset_iterate(struct ip_set *set, bool desired_value);
 
-ipset_iterator_t *
-ipset_iterate(ip_set_t *set, gboolean desired_value);
-
-
-/**
- * Return an iterator that yields all of the IP networks that are (if
- * desired_value is TRUE) or are not (if desired_value is FALSE) in an
- * IP set.
- */
-
-ipset_iterator_t *
-ipset_iterate_networks(ip_set_t *set, gboolean desired_value);
-
-
-/**
- * Free an IP set iterator.
- */
+struct ipset_iterator *
+ipset_iterate_networks(struct ip_set *set, bool desired_value);
 
 void
-ipset_iterator_free(ipset_iterator_t *iterator);
-
-
-/**
- * Advance an IP set iterator to the next IP address.
- */
+ipset_iterator_free(struct ipset_iterator *iterator);
 
 void
-ipset_iterator_advance(ipset_iterator_t *iterator);
+ipset_iterator_advance(struct ipset_iterator *iterator);
 
 
 /*---------------------------------------------------------------------
  * IP map functions
  */
 
-/**
- * Initializes a new IP map that has already been allocated (on the
- * stack, for instance).  After returning, the map will be empty.  Any
- * addresses that aren't explicitly added to the map will have
- * default_value as their value.
- */
+void
+ipmap_init(struct ip_map *map, int default_value);
 
 void
-ipmap_init(ip_map_t *map, gint default_value);
+ipmap_done(struct ip_map *map);
 
-/**
- * Finalize an IP map, freeing any space used to represent the map
- * internally.  Doesn't deallocate the ip_map_t itself, so this is
- * safe to call on stack-allocated maps.
- */
+struct ip_map *
+ipmap_new(int default_value);
 
 void
-ipmap_done(ip_map_t *map);
+ipmap_free(struct ip_map *map);
 
-/**
- * Creates a new empty IP map on the heap.  Returns NULL if we can't
- * allocate a new instance.  Any addresses that aren't explicitly
- * added to the map will have default_value as their value.
- */
+bool
+ipmap_is_empty(const struct ip_map *map);
 
-ip_map_t *
-ipmap_new(gint default_value);
+bool
+ipmap_is_equal(const struct ip_map *map1, const struct ip_map *map2);
 
-/**
- * Finalize and free a heap-allocated IP map, freeing any space used
- * to represent the map internally.
- */
+size_t
+ipmap_memory_size(const struct ip_map *map);
 
-void
-ipmap_free(ip_map_t *map);
+int
+ipmap_save(FILE *stream, const struct ip_map *map);
 
-/**
- * Returns whether the IP map is empty.  A map is considered empty if
- * every input is mapped to the default value.
- */
+int
+ipmap_save_to_stream(struct cork_stream_consumer *stream,
+                     const struct ip_map *map);
 
-gboolean
-ipmap_is_empty(ip_map_t *map);
-
-/**
- * Returns whether two IP maps are equal.
- */
-
-gboolean
-ipmap_is_equal(ip_map_t *map1, ip_map_t *map2);
-
-/**
- * Returns whether two IP maps are not equal.
- */
-
-gboolean
-ipmap_is_not_equal(ip_map_t *map1, ip_map_t *map2);
-
-/**
- * Returns the number of bytes needed to store the IP map.  Note that
- * adding together the storage needed for each map you use doesn't
- * necessarily give you the total memory requirements, since some
- * storage can be shared between maps.
- */
-
-gsize
-ipmap_memory_size(ip_map_t *map);
-
-/**
- * Saves an IP map to disk.  Returns a boolean indicating whether the
- * operation was successful.
- */
-
-gboolean
-ipmap_save(FILE *stream,
-           ip_map_t *map,
-           GError **err);
-
-/**
- * Loads an IP map from disk.  Returns NULL if the map cannot be
- * loaded.
- */
-
-ip_map_t *
-ipmap_load(FILE *stream,
-           GError **err);
-
-/**
- * Adds a single IPv4 address to an IP map, with the given value.  We
- * don't care what specific type is used to represent the address;
- * elem should be a pointer to an address stored as a 32-bit
- * big-endian integer.
- */
+struct ip_map *
+ipmap_load(FILE *stream);
 
 void
-ipmap_ipv4_set(ip_map_t *map, gpointer elem, gint value);
-
-/**
- * Adds a network of IPv4 addresses to an IP map, with each address in
- * the network mapping to the given value.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 32-bit big-endian integer.  All
- * of the addresses that start with the first netmask bits of elem
- * will be added to the map.
- */
+ipmap_ipv4_set(struct ip_map *map, struct cork_ipv4 *elem, int value);
 
 void
-ipmap_ipv4_set_network(ip_map_t *map,
-                       gpointer elem,
-                       guint netmask,
-                       gint value);
+ipmap_ipv4_set_network(struct ip_map *map, struct cork_ipv4 *elem,
+                       unsigned int cidr_prefix, int value);
 
-/**
- * Returns the value that an IPv4 address is mapped to in the map.  We
- * don't care what specific type is used to represent the address;
- * elem should be a pointer to an address stored as a 32-bit
- * big-endian integer.
- */
-
-gint
-ipmap_ipv4_get(ip_map_t *map, gpointer elem);
-
-/**
- * Adds a single IPv6 address to an IP map, with the given value.  We
- * don't care what specific type is used to represent the address;
- * elem should be a pointer to an address stored as a 128-bit
- * big-endian integer.
- */
+int
+ipmap_ipv4_get(struct ip_map *map, struct cork_ipv4 *elem);
 
 void
-ipmap_ipv6_set(ip_map_t *map, gpointer elem, gint value);
-
-/**
- * Adds a network of IPv6 addresses to an IP map, with each address in
- * the network mapping to the given value.  We don't care what
- * specific type is used to represent the address; elem should be a
- * pointer to an address stored as a 128-bit big-endian integer.  All
- * of the addresses that start with the first netmask bits of elem
- * will be added to the map.
- */
+ipmap_ipv6_set(struct ip_map *map, struct cork_ipv6 *elem, int value);
 
 void
-ipmap_ipv6_set_network(ip_map_t *map,
-                       gpointer elem,
-                       guint netmask,
-                       gint value);
+ipmap_ipv6_set_network(struct ip_map *map, struct cork_ipv6 *elem,
+                       unsigned int cidr_prefix, int value);
 
-/**
- * Returns the value that an IPv6 address is mapped to in the map.  We
- * don't care what specific type is used to represent the address;
- * elem should be a pointer to an address stored as a 128-bit
- * big-endian integer.
- */
-
-gint
-ipmap_ipv6_get(ip_map_t *map, gpointer elem);
-
-/**
- * Adds a single generic IP address to an IP map, with the given
- * value.
- */
+int
+ipmap_ipv6_get(struct ip_map *map, struct cork_ipv6 *elem);
 
 void
-ipmap_ip_set(ip_map_t *map, ipset_ip_t *addr, gint value);
-
-/**
- * Adds a network of generic IP addresses to an IP map, with each
- * address in the network mapping to the given value.  All of the
- * addresses that start with the first netmask bits of elem will be
- * added to the map.
- */
+ipmap_ip_set(struct ip_map *map, struct cork_ip *addr, int value);
 
 void
-ipmap_ip_set_network(ip_map_t *map,
-                     ipset_ip_t *addr,
-                     guint netmask,
-                     gint value);
+ipmap_ip_set_network(struct ip_map *map, struct cork_ip *addr,
+                     unsigned int cidr_prefix, int value);
 
-/**
- * Returns the value that a generic IP address is mapped to in the
- * map.
- */
-
-gint
-ipmap_ip_get(ip_map_t *map, ipset_ip_t *addr);
+int
+ipmap_ip_get(struct ip_map *map, struct cork_ip *addr);
 
 
 #endif  /* IPSET_IPSET_H */

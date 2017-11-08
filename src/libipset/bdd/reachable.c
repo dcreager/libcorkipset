@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -8,106 +8,76 @@
  * ----------------------------------------------------------------------
  */
 
-#include <glib.h>
+#include <libcork/core.h>
+#include <libcork/ds.h>
 
-#if GLIB_MINOR_VERSION < 14
-#define G_QUEUE_INIT { NULL, NULL, 0 }
-#endif
-
-#include <ipset/bdd/nodes.h>
-#include <ipset/logging.h>
+#include "ipset/bdd/nodes.h"
+#include "ipset/logging.h"
 
 
-gsize
-ipset_node_reachable_count(ipset_node_id_t node)
+size_t
+ipset_node_reachable_count(const struct ipset_node_cache *cache,
+                           ipset_node_id node)
 {
-    /*
-     * Create a set to track when we've visited a given node.
-     */
+    /* Create a set to track when we've visited a given node. */
+    struct cork_hash_table  *visited = cork_pointer_hash_table_new(0, 0);
 
-    GHashTable  *visited = g_hash_table_new(NULL, NULL);
+    /* And a queue of nodes to check. */
+    cork_array(ipset_node_id)  queue;
+    cork_array_init(&queue);
 
-    /*
-     * And a queue of nodes to check.
-     */
-
-    GQueue  queue = G_QUEUE_INIT;
-
-    if (ipset_node_get_type(node) == IPSET_NONTERMINAL_NODE)
-    {
-        g_d_debug("Adding node %p to queue", node);
-        g_queue_push_tail(&queue, node);
+    if (ipset_node_get_type(node) == IPSET_NONTERMINAL_NODE) {
+        DEBUG("Adding node %u to queue", node);
+        cork_array_append(&queue, node);
     }
 
-    /*
-     * And somewhere to store the result.
-     */
+    /* And somewhere to store the result. */
+    size_t  node_count = 0;
 
-    gsize  node_count = 0;
+    /* Check each node in turn. */
+    while (!cork_array_is_empty(&queue)) {
+        ipset_node_id  curr = cork_array_at(&queue, --queue.size);
 
-    /*
-     * Check each node in turn.
-     */
+        /* We don't have to do anything if this node is already in the
+         * visited set. */
+        if (cork_hash_table_get(visited, (void *) (uintptr_t) curr) == NULL) {
+            DEBUG("Visiting node %u for the first time", curr);
 
-    while (!g_queue_is_empty(&queue))
-    {
-        ipset_node_id_t  curr = g_queue_pop_tail(&queue);
+            /* Add the node to the visited set. */
+            cork_hash_table_put
+                (visited, (void *) (uintptr_t) curr,
+                 (void *) (uintptr_t) true, NULL, NULL, NULL);
 
-        /*
-         * We don't have to do anything if this node is already in the
-         * visited set.
-         */
-
-        if (!g_hash_table_lookup_extended(visited, curr, NULL, NULL))
-        {
-            g_d_debug("Visiting node %p for the first time", curr);
-
-            /*
-             * Add the node to the visited set.
-             */
-
-            g_hash_table_insert(visited, curr, NULL);
-
-            /*
-             * Increase the node count.
-             */
-
+            /* Increase the node count. */
             node_count++;
 
-            /*
-             * And add the node's nonterminal children to the visit
-             * queue.
-             */
+            /* And add the node's nonterminal children to the visit
+             * queue. */
+            struct ipset_node  *node =
+                ipset_node_cache_get_nonterminal(cache, curr);
 
-            ipset_node_t  *node = ipset_nonterminal_node(curr);
-
-            if (ipset_node_get_type(node->low) ==
-                IPSET_NONTERMINAL_NODE)
-            {
-                g_d_debug("Adding node %p to queue", node->low);
-                g_queue_push_tail(&queue, node->low);
+            if (ipset_node_get_type(node->low) == IPSET_NONTERMINAL_NODE) {
+                DEBUG("Adding node %u to queue", node->low);
+                cork_array_append(&queue, node->low);
             }
 
-            if (ipset_node_get_type(node->high) ==
-                IPSET_NONTERMINAL_NODE)
-            {
-                g_d_debug("Adding node %p to queue", node->high);
-                g_queue_push_tail(&queue, node->high);
+            if (ipset_node_get_type(node->high) == IPSET_NONTERMINAL_NODE) {
+                DEBUG("Adding node %u to queue", node->high);
+                cork_array_append(&queue, node->high);
             }
         }
     }
 
-    /*
-     * Return the result, freeing everything before we go.
-     */
-
-    g_hash_table_destroy(visited);
+    /* Return the result, freeing everything before we go. */
+    cork_hash_table_free(visited);
+    cork_array_done(&queue);
     return node_count;
 }
 
 
-gsize
-ipset_node_memory_size(ipset_node_id_t node)
+size_t
+ipset_node_memory_size(const struct ipset_node_cache *cache,
+                       ipset_node_id node)
 {
-    return ipset_node_reachable_count(node) * sizeof(ipset_node_t);
+    return ipset_node_reachable_count(cache, node) * sizeof(struct ipset_node);
 }

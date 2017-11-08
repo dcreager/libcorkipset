@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -12,9 +12,10 @@
 #include <string.h>
 
 #include <check.h>
-#include <glib.h>
+#include <libcork/core.h>
 
-#include <ipset/bdd/nodes.h>
+#include "ipset/bdd/nodes.h"
+#include "ipset/bits.h"
 
 
 /*-----------------------------------------------------------------------
@@ -23,8 +24,8 @@
 
 START_TEST(test_bdd_assignment_empty_equal)
 {
-    ipset_assignment_t  *a1;
-    ipset_assignment_t  *a2;
+    struct ipset_assignment  *a1;
+    struct ipset_assignment  *a2;
 
     a1 = ipset_assignment_new();
     a2 = ipset_assignment_new();
@@ -40,8 +41,8 @@ END_TEST
 
 START_TEST(test_bdd_assignment_equal_1)
 {
-    ipset_assignment_t  *a1;
-    ipset_assignment_t  *a2;
+    struct ipset_assignment  *a1;
+    struct ipset_assignment  *a2;
 
     a1 = ipset_assignment_new();
     ipset_assignment_set(a1, 0, IPSET_TRUE);
@@ -62,8 +63,8 @@ END_TEST
 
 START_TEST(test_bdd_assignment_equal_2)
 {
-    ipset_assignment_t  *a1;
-    ipset_assignment_t  *a2;
+    struct ipset_assignment  *a1;
+    struct ipset_assignment  *a2;
 
     a1 = ipset_assignment_new();
     ipset_assignment_set(a1, 0, IPSET_TRUE);
@@ -85,8 +86,8 @@ END_TEST
 
 START_TEST(test_bdd_assignment_cut_1)
 {
-    ipset_assignment_t  *a1;
-    ipset_assignment_t  *a2;
+    struct ipset_assignment  *a1;
+    struct ipset_assignment  *a2;
 
     a1 = ipset_assignment_new();
     ipset_assignment_set(a1, 0, IPSET_TRUE);
@@ -116,30 +117,29 @@ END_TEST
 
 START_TEST(test_bdd_assignment_expand_1)
 {
-    ipset_assignment_t  *a;
+    struct ipset_assignment  *a;
 
     a = ipset_assignment_new();
-    ipset_assignment_set(a, 0, TRUE);
-    ipset_assignment_set(a, 1, FALSE);
+    ipset_assignment_set(a, 0, true);
+    ipset_assignment_set(a, 1, false);
 
-    ipset_expanded_assignment_t  *it;
+    struct ipset_expanded_assignment  *it;
     it = ipset_assignment_expand(a, 2);
 
-    GByteArray  *ea = g_byte_array_sized_new(1);
-    memset(ea->data, 0, 1);
+    uint8_t  ea[1];
+    memset(ea, 0, 1);
 
     fail_if(it->finished,
             "Expanded assignment shouldn't be empty");
-    IPSET_BIT_SET(ea->data, 0, TRUE);
-    IPSET_BIT_SET(ea->data, 1, FALSE);
-    fail_unless(memcmp(ea->data, it->values->data, 1) == 0,
+    IPSET_BIT_SET(ea, 0, true);
+    IPSET_BIT_SET(ea, 1, false);
+    fail_unless(memcmp(ea, it->values.buf, 1) == 0,
                 "Expanded assignment doesn't match");
 
     ipset_expanded_assignment_advance(it);
     fail_unless(it->finished,
                 "Expanded assignment should have 1 element");
 
-    g_byte_array_free(ea, TRUE);
     ipset_expanded_assignment_free(it);
     ipset_assignment_free(a);
 }
@@ -148,40 +148,39 @@ END_TEST
 
 START_TEST(test_bdd_assignment_expand_2)
 {
-    ipset_assignment_t  *a;
+    struct ipset_assignment  *a;
 
     a = ipset_assignment_new();
-    ipset_assignment_set(a, 0, TRUE);
-    ipset_assignment_set(a, 1, FALSE);
+    ipset_assignment_set(a, 0, true);
+    ipset_assignment_set(a, 1, false);
 
-    ipset_expanded_assignment_t  *it;
+    struct ipset_expanded_assignment  *it;
     it = ipset_assignment_expand(a, 3);
 
-    GByteArray  *ea = g_byte_array_sized_new(1);
-    memset(ea->data, 0, 1);
+    uint8_t  ea[1];
+    memset(ea, 0, 1);
 
     fail_if(it->finished,
             "Expanded assignment shouldn't be empty");
-    IPSET_BIT_SET(ea->data, 0, TRUE);
-    IPSET_BIT_SET(ea->data, 1, FALSE);
-    IPSET_BIT_SET(ea->data, 2, FALSE);
-    fail_unless(memcmp(ea->data, it->values->data, 1) == 0,
+    IPSET_BIT_SET(ea, 0, true);
+    IPSET_BIT_SET(ea, 1, false);
+    IPSET_BIT_SET(ea, 2, false);
+    fail_unless(memcmp(ea, it->values.buf, 1) == 0,
                 "Expanded assignment 1 doesn't match");
 
     ipset_expanded_assignment_advance(it);
     fail_if(it->finished,
                 "Expanded assignment should have at least 1 element");
-    IPSET_BIT_SET(ea->data, 0, TRUE);
-    IPSET_BIT_SET(ea->data, 1, FALSE);
-    IPSET_BIT_SET(ea->data, 2, TRUE);
-    fail_unless(memcmp(ea->data, it->values->data, 1) == 0,
+    IPSET_BIT_SET(ea, 0, true);
+    IPSET_BIT_SET(ea, 1, false);
+    IPSET_BIT_SET(ea, 2, true);
+    fail_unless(memcmp(ea, it->values.buf, 1) == 0,
                 "Expanded assignment 2 doesn't match");
 
     ipset_expanded_assignment_advance(it);
     fail_unless(it->finished,
                 "Expanded assignment should have 2 elements");
 
-    g_byte_array_free(ea, TRUE);
     ipset_expanded_assignment_free(it);
     ipset_assignment_free(a);
 }
@@ -190,40 +189,39 @@ END_TEST
 
 START_TEST(test_bdd_assignment_expand_3)
 {
-    ipset_assignment_t  *a;
+    struct ipset_assignment  *a;
 
     a = ipset_assignment_new();
-    ipset_assignment_set(a, 0, TRUE);
-    ipset_assignment_set(a, 2, FALSE);
+    ipset_assignment_set(a, 0, true);
+    ipset_assignment_set(a, 2, false);
 
-    ipset_expanded_assignment_t  *it;
+    struct ipset_expanded_assignment  *it;
     it = ipset_assignment_expand(a, 3);
 
-    GByteArray  *ea = g_byte_array_sized_new(1);
-    memset(ea->data, 0, 1);
+    uint8_t  ea[1];
+    memset(ea, 0, 1);
 
     fail_if(it->finished,
             "Expanded assignment shouldn't be empty");
-    IPSET_BIT_SET(ea->data, 0, TRUE);
-    IPSET_BIT_SET(ea->data, 1, FALSE);
-    IPSET_BIT_SET(ea->data, 2, FALSE);
-    fail_unless(memcmp(ea->data, it->values->data, 1) == 0,
+    IPSET_BIT_SET(ea, 0, true);
+    IPSET_BIT_SET(ea, 1, false);
+    IPSET_BIT_SET(ea, 2, false);
+    fail_unless(memcmp(ea, it->values.buf, 1) == 0,
                 "Expanded assignment 1 doesn't match");
 
     ipset_expanded_assignment_advance(it);
     fail_if(it->finished,
                 "Expanded assignment should have at least 1 element");
-    IPSET_BIT_SET(ea->data, 0, TRUE);
-    IPSET_BIT_SET(ea->data, 1, TRUE);
-    IPSET_BIT_SET(ea->data, 2, FALSE);
-    fail_unless(memcmp(ea->data, it->values->data, 1) == 0,
+    IPSET_BIT_SET(ea, 0, true);
+    IPSET_BIT_SET(ea, 1, true);
+    IPSET_BIT_SET(ea, 2, false);
+    fail_unless(memcmp(ea, it->values.buf, 1) == 0,
                 "Expanded assignment 2 doesn't match");
 
     ipset_expanded_assignment_advance(it);
     fail_unless(it->finished,
                 "Expanded assignment should have 2 elements");
 
-    g_byte_array_free(ea, TRUE);
     ipset_expanded_assignment_free(it);
     ipset_assignment_free(a);
 }

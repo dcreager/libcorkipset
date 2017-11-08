@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -8,29 +8,14 @@
  * ----------------------------------------------------------------------
  */
 
-#include <glib.h>
+#include <libcork/core.h>
 
-#include <ipset/bdd/nodes.h>
-#include <ipset/ipset.h>
-#include <ipset/internal.h>
-
-
-ipset_node_cache_t *
-ipset_cache = NULL;
+#include "ipset/bdd/nodes.h"
+#include "ipset/ipset.h"
 
 
 int
 ipset_init_library()
 {
-    if (G_UNLIKELY(ipset_cache == NULL))
-    {
-        ipset_cache = ipset_node_cache_new();
-
-        if (ipset_cache == NULL)
-            return 1;
-
-        return 0;
-    } else {
-        return 0;
-    }
+    return 0;
 }

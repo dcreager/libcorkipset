@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009-2010, RedJack, LLC.
+ * Copyright © 2009-2012, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -9,31 +9,15 @@
  */
 
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <check.h>
-#include <glib.h>
-#include <glib/gstdio.h>
+#include <libcork/core.h>
 
-#include <ipset/ipset.h>
+#include "ipset/ipset.h"
 
 
-/*-----------------------------------------------------------------------
- * Sample IP addresses
- */
-
-typedef guint8  ipv4_addr_t[4];
-typedef guint8  ipv6_addr_t[16];
-
-static ipv4_addr_t  IPV4_ADDR_1 = "\xc0\xa8\x01\x64"; /* 192.168.1.100 */
-static ipv4_addr_t  IPV4_ADDR_2 = "\xc0\xa8\x01\x65"; /* 192.168.1.101 */
-static ipv4_addr_t  IPV4_ADDR_3 = "\xc0\xa8\x02\x64"; /* 192.168.2.100 */
-
-static ipv6_addr_t  IPV6_ADDR_1 =
-"\xfe\x80\x00\x00\x00\x00\x00\x00\x02\x1e\xc2\xff\xfe\x9f\xe8\xe1";
-static ipv6_addr_t  IPV6_ADDR_2 =
-"\xfe\x80\x00\x00\x00\x00\x00\x00\x02\x1e\xc2\xff\xfe\x9f\xe8\xe2";
-static ipv6_addr_t  IPV6_ADDR_3 =
-"\xfe\x80\x00\x01\x00\x00\x00\x00\x02\x1e\xc2\xff\xfe\x9f\xe8\xe1";
+#define DESCRIBE_TEST  fprintf(stderr, "---\n%s\n", __func__)
 
 
 /*-----------------------------------------------------------------------
@@ -42,41 +26,37 @@ static ipv6_addr_t  IPV6_ADDR_3 =
 
 #define TEMP_FILE_TEMPLATE "/tmp/bdd-XXXXXX"
 
-typedef struct _GTempFile
-{
-    gchar  *filename;
+struct temp_file {
+    char  *filename;
     FILE  *stream;
-} GTempFile;
+};
 
-
-static GTempFile *
-g_temp_file_new(const gchar *template)
+static struct temp_file *
+temp_file_new(void)
 {
-    GTempFile  *temp_file = g_slice_new(GTempFile);
-    temp_file->filename = g_strdup(template);
+    struct temp_file  *temp_file = cork_new(struct temp_file);
+    temp_file->filename = (char *) cork_strdup(TEMP_FILE_TEMPLATE);
     temp_file->stream = NULL;
     return temp_file;
 }
 
-
 static void
-g_temp_file_free(GTempFile *temp_file)
+temp_file_free(struct temp_file *temp_file)
 {
-    g_unlink(temp_file->filename);
-    g_free(temp_file->filename);
-
-    if (temp_file->stream != NULL)
-    {
+    if (temp_file->stream != NULL) {
         fclose(temp_file->stream);
     }
+
+    unlink(temp_file->filename);
+    cork_strfree(temp_file->filename);
+    free(temp_file);
 }
 
-
 static void
-g_temp_file_open_stream(GTempFile *temp_file)
+temp_file_open_stream(struct temp_file *temp_file)
 {
-    int  fd = g_mkstemp(temp_file->filename);
-    temp_file->stream = fdopen(fd, "r+b");
+    int  fd = mkstemp(temp_file->filename);
+    temp_file->stream = fdopen(fd, "rb+");
 }
 
 
@@ -85,27 +65,27 @@ g_temp_file_open_stream(GTempFile *temp_file)
  */
 
 static void
-test_round_trip(ip_map_t *map)
+test_round_trip(struct ip_map *map)
 {
-    ip_map_t  *read_map;
+    struct ip_map  *read_map;
 
-    GTempFile  *temp_file = g_temp_file_new(TEMP_FILE_TEMPLATE);
-    g_temp_file_open_stream(temp_file);
+    struct temp_file  *temp_file = temp_file_new();
+    temp_file_open_stream(temp_file);
 
-    fail_unless(ipmap_save(temp_file->stream, map, NULL),
+    fail_unless(ipmap_save(temp_file->stream, map) == 0,
                 "Could not save map");
 
     fflush(temp_file->stream);
     fseek(temp_file->stream, 0, SEEK_SET);
 
-    read_map = ipmap_load(temp_file->stream, NULL);
+    read_map = ipmap_load(temp_file->stream);
     fail_if(read_map == NULL,
             "Could not read map");
 
     fail_unless(ipmap_is_equal(map, read_map),
                 "Map not same after saving/loading");
 
-    g_temp_file_free(temp_file);
+    temp_file_free(temp_file);
     ipmap_free(read_map);
 }
 
@@ -116,7 +96,8 @@ test_round_trip(ip_map_t *map)
 
 START_TEST(test_map_starts_empty)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
 
     ipmap_init(&map, 0);
     fail_unless(ipmap_is_empty(&map),
@@ -127,7 +108,8 @@ END_TEST
 
 START_TEST(test_empty_maps_equal)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
 
     ipmap_init(&map1, 0);
     ipmap_init(&map2, 0);
@@ -138,22 +120,10 @@ START_TEST(test_empty_maps_equal)
 }
 END_TEST
 
-START_TEST(test_empty_maps_not_unequal)
-{
-    ip_map_t  map1, map2;
-
-    ipmap_init(&map1, 0);
-    ipmap_init(&map2, 0);
-    fail_if(ipmap_is_not_equal(&map1, &map2),
-            "Empty maps should not be unequal");
-    ipmap_done(&map1);
-    ipmap_done(&map2);
-}
-END_TEST
-
 START_TEST(test_different_defaults_unequal)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
 
     ipmap_init(&map1, 0);
     ipmap_init(&map2, 1);
@@ -167,7 +137,8 @@ END_TEST
 
 START_TEST(test_store_empty_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
 
     ipmap_init(&map, 0);
     test_round_trip(&map);
@@ -177,7 +148,8 @@ END_TEST
 
 START_TEST(test_store_empty_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
 
     ipmap_init(&map, 1);
     test_round_trip(&map);
@@ -192,163 +164,210 @@ END_TEST
 
 START_TEST(test_ipv4_insert_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set(&map, &IPV4_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_1) == 1,
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 1);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_insert_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set(&map, &IPV4_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_2) == 0,
-                "Element should be present");
-
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 1);
+    cork_ipv4_init(&addr, "192.168.1.101");
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_insert_03)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set(&map, &IPV4_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_3) == 0,
-                "Element should be present");
-
-    ipmap_done(&map);
-}
-END_TEST
-
-START_TEST(test_ipv4_insert_04)
-{
-    ip_map_t  map;
-
-    ipmap_init(&map, 0);
-
-    ipset_ip_t  ip;
-    ipset_ip_from_string(&ip, "192.168.1.100");
-
-    ipmap_ip_set(&map, &ip, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_1) == 1,
-                "Element should be present");
-
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 1);
+    cork_ipv4_init(&addr, "192.168.2.100");
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_insert_network_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 24, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_1) == 1,
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_insert_network_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 24, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_2) == 1,
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.101");
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_insert_network_03)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 24, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_3) == 0,
-                "Element should be present");
-
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.2.100");
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
-START_TEST(test_ipv4_insert_network_04)
+START_TEST(test_ipv4_overwrite_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-
-    ipset_ip_t  ip;
-    ipset_ip_from_string(&ip, "192.168.1.100");
-
-    ipmap_ip_set_network(&map, &ip, 24, 1);
-
-    fail_unless(ipmap_ipv4_get(&map, &IPV4_ADDR_1) == 1,
-                "Element should be present");
-
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 0);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 0,
+                "Element should be overwritten");
     ipmap_done(&map);
 }
 END_TEST
 
-START_TEST(test_ipv4_bad_netmask_01)
+START_TEST(test_ipv4_overwrite_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 0, 1);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 2);
+    fail_unless(ipmap_ipv4_get(&map, &addr) == 2,
+                "Element should be overwritten");
+    ipmap_done(&map);
+}
+END_TEST
+
+START_TEST(test_ipv4_bad_cidr_prefix_01)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
+
+    ipmap_init(&map, 0);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set_network(&map, &addr, 33, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
-    ipmap_done(&map);
-}
-END_TEST
-
-START_TEST(test_ipv4_bad_netmask_02)
-{
-    ip_map_t  map;
-
-    ipmap_init(&map, 0);
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 33, 1);
-    fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
+    cork_error_clear();
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv4_equality_1)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv4_set(&map1, &IPV4_ADDR_1, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv4_set(&map2, &IPV4_ADDR_1, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map2, &addr, 1);
+
+    fail_unless(ipmap_is_equal(&map1, &map2),
+                "Expected {x} == {x}");
+
+    ipmap_done(&map1);
+    ipmap_done(&map2);
+}
+END_TEST
+
+START_TEST(test_ipv4_equality_2)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv4  addr;
+
+    ipmap_init(&map1, 0);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set(&map1, &addr, 1);
+    ipmap_ipv4_set_network(&map1, &addr, 24, 1);
+
+    ipmap_init(&map2, 0);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map2, &addr, 24, 1);
+
+    fail_unless(ipmap_is_equal(&map1, &map2),
+                "Expected {x} == {x}");
+
+    ipmap_done(&map1);
+    ipmap_done(&map2);
+}
+END_TEST
+
+START_TEST(test_ipv4_equality_3)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv4  addr;
+
+    ipmap_init(&map1, 0);
+    cork_ipv4_init(&addr, "192.168.0.0");
+    ipmap_ipv4_set(&map1, &addr, 1);
+    ipmap_ipv4_set_network(&map1, &addr, 23, 1);
+    ipmap_ipv4_set_network(&map1, &addr, 24, 2);
+
+    ipmap_init(&map2, 0);
+    cork_ipv4_init(&addr, "192.168.0.0");
+    ipmap_ipv4_set_network(&map2, &addr, 24, 2);
+    cork_ipv4_init(&addr, "192.168.1.0");
+    ipmap_ipv4_set_network(&map2, &addr, 24, 1);
 
     fail_unless(ipmap_is_equal(&map1, &map2),
                 "Expected {x} == {x}");
@@ -360,15 +379,18 @@ END_TEST
 
 START_TEST(test_ipv4_inequality_1)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv4_set(&map1, &IPV4_ADDR_1, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv4_set_network(&map2, &IPV4_ADDR_1, 24, 1);
+    ipmap_ipv4_set_network(&map2, &addr, 24, 1);
 
-    fail_unless(ipmap_is_not_equal(&map1, &map2),
+    fail_unless(!ipmap_is_equal(&map1, &map2),
                 "Expected {x} != {x}");
 
     ipmap_done(&map1);
@@ -378,15 +400,18 @@ END_TEST
 
 START_TEST(test_ipv4_inequality_2)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv4_set(&map1, &IPV4_ADDR_1, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv4_set(&map2, &IPV4_ADDR_1, 2);
+    ipmap_ipv4_set(&map2, &addr, 2);
 
-    fail_unless(ipmap_is_not_equal(&map1, &map2),
+    fail_unless(!ipmap_is_equal(&map1, &map2),
                 "Expected {x} != {x}");
 
     ipmap_done(&map1);
@@ -396,19 +421,16 @@ END_TEST
 
 START_TEST(test_ipv4_memory_size_1)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
     size_t  expected, actual;
 
     ipmap_init(&map, 0);
-    ipmap_ipv4_set(&map, &IPV4_ADDR_1, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 1);
 
-#if GLIB_SIZEOF_VOID_P == 4
-    expected = 396;
-#elif GLIB_SIZEOF_VOID_P == 8
-    expected = 792;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 33 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -421,19 +443,16 @@ END_TEST
 
 START_TEST(test_ipv4_memory_size_2)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
     size_t  expected, actual;
 
     ipmap_init(&map, 0);
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_1, 24, 1);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set_network(&map, &addr, 24, 1);
 
-#if GLIB_SIZEOF_VOID_P == 4
-    expected = 300;
-#elif GLIB_SIZEOF_VOID_P == 8
-    expected = 600;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 25 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -446,12 +465,17 @@ END_TEST
 
 START_TEST(test_ipv4_store_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv4  addr;
 
     ipmap_init(&map, 0);
-    ipmap_ipv4_set(&map, &IPV4_ADDR_1, 1);
-    ipmap_ipv4_set(&map, &IPV4_ADDR_2, 2);
-    ipmap_ipv4_set_network(&map, &IPV4_ADDR_3, 24, 2);
+    cork_ipv4_init(&addr, "192.168.1.100");
+    ipmap_ipv4_set(&map, &addr, 1);
+    cork_ipv4_init(&addr, "192.168.1.101");
+    ipmap_ipv4_set(&map, &addr, 2);
+    cork_ipv4_init(&addr, "192.168.2.100");
+    ipmap_ipv4_set_network(&map, &addr, 24, 2);
     test_round_trip(&map);
     ipmap_done(&map);
 }
@@ -464,163 +488,175 @@ END_TEST
 
 START_TEST(test_ipv6_insert_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set(&map, &IPV6_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_1) == 1,
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map, &addr, 1);
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_insert_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set(&map, &IPV6_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_2) == 0,
-                "Element should be present");
-
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map, &addr, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e2");
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_insert_03)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set(&map, &IPV6_ADDR_1, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_3) == 0,
-                "Element should be present");
-
-    ipmap_done(&map);
-}
-END_TEST
-
-START_TEST(test_ipv6_insert_04)
-{
-    ip_map_t  map;
-
-    ipmap_init(&map, 0);
-
-    ipset_ip_t  ip;
-    ipset_ip_from_string(&ip, "fe80::21e:c2ff:fe9f:e8e1");
-
-    ipmap_ip_set(&map, &ip, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_1) == 1,
-                "Element should be present");
-
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map, &addr, 1);
+    cork_ipv6_init(&addr, "fe80:1::21e:c2ff:fe9f:e8e1");
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_insert_network_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 32, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_1) == 1,
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 32, 1);
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_insert_network_02)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 32, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_2) == 1,
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 32, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e2");
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 1,
                 "Element should be present");
-
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_insert_network_03)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 32, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_3) == 0,
-                "Element should be present");
-
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 32, 1);
+    cork_ipv6_init(&addr, "fe80:1::21e:c2ff:fe9f:e8e1");
+    fail_unless(ipmap_ipv6_get(&map, &addr) == 0,
+                "Element should not be present");
     ipmap_done(&map);
 }
 END_TEST
 
-START_TEST(test_ipv6_insert_network_04)
+START_TEST(test_ipv6_bad_cidr_prefix_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-
-    ipset_ip_t  ip;
-    ipset_ip_from_string(&ip, "fe80::21e:c2ff:fe9f:e8e1");
-
-    ipmap_ip_set_network(&map, &ip, 32, 1);
-
-    fail_unless(ipmap_ipv6_get(&map, &IPV6_ADDR_1) == 1,
-                "Element should be present");
-
-    ipmap_done(&map);
-}
-END_TEST
-
-START_TEST(test_ipv6_bad_netmask_01)
-{
-    ip_map_t  map;
-
-    ipmap_init(&map, 0);
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 0, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 129, 1);
     fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
-    ipmap_done(&map);
-}
-END_TEST
-
-START_TEST(test_ipv6_bad_netmask_02)
-{
-    ip_map_t  map;
-
-    ipmap_init(&map, 0);
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 129, 1);
-    fail_unless(ipmap_is_empty(&map),
-                "Bad netmask shouldn't change map");
+                "Bad CIDR prefix shouldn't change map");
+    cork_error_clear();
     ipmap_done(&map);
 }
 END_TEST
 
 START_TEST(test_ipv6_equality_1)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv6_set(&map1, &IPV6_ADDR_1, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv6_set(&map2, &IPV6_ADDR_1, 1);
+    ipmap_ipv6_set(&map2, &addr, 1);
+
+    fail_unless(ipmap_is_equal(&map1, &map2),
+                "Expected {x} == {x}");
+
+    ipmap_done(&map1);
+    ipmap_done(&map2);
+}
+END_TEST
+
+START_TEST(test_ipv6_equality_2)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv6  addr;
+
+    ipmap_init(&map1, 0);
+    cork_ipv6_init(&addr, "fe80::");
+    ipmap_ipv6_set(&map1, &addr, 1);
+    ipmap_ipv6_set_network(&map1, &addr, 64, 1);
+
+    ipmap_init(&map2, 0);
+    cork_ipv6_init(&addr, "fe80::");
+    ipmap_ipv6_set_network(&map2, &addr, 64, 1);
+
+    fail_unless(ipmap_is_equal(&map1, &map2),
+                "Expected {x} == {x}");
+
+    ipmap_done(&map1);
+    ipmap_done(&map2);
+}
+END_TEST
+
+START_TEST(test_ipv6_equality_3)
+{
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv6  addr;
+
+    ipmap_init(&map1, 0);
+    cork_ipv6_init(&addr, "fe80::");
+    ipmap_ipv6_set(&map1, &addr, 1);
+    ipmap_ipv6_set_network(&map1, &addr, 111, 1);
+    ipmap_ipv6_set_network(&map1, &addr, 112, 2);
+
+    ipmap_init(&map2, 0);
+    cork_ipv6_init(&addr, "fe80::");
+    ipmap_ipv6_set_network(&map2, &addr, 112, 2);
+    cork_ipv6_init(&addr, "fe80::1:0");
+    ipmap_ipv6_set_network(&map2, &addr, 112, 1);
 
     fail_unless(ipmap_is_equal(&map1, &map2),
                 "Expected {x} == {x}");
@@ -632,15 +668,18 @@ END_TEST
 
 START_TEST(test_ipv6_inequality_1)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv6_set(&map1, &IPV6_ADDR_1, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv6_set_network(&map2, &IPV6_ADDR_1, 32, 1);
+    ipmap_ipv6_set_network(&map2, &addr, 32, 1);
 
-    fail_unless(ipmap_is_not_equal(&map1, &map2),
+    fail_unless(!ipmap_is_equal(&map1, &map2),
                 "Expected {x} != {x}");
 
     ipmap_done(&map1);
@@ -650,15 +689,18 @@ END_TEST
 
 START_TEST(test_ipv6_inequality_2)
 {
-    ip_map_t  map1, map2;
+    DESCRIBE_TEST;
+    struct ip_map  map1, map2;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map1, 0);
-    ipmap_ipv6_set(&map1, &IPV6_ADDR_1, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map1, &addr, 1);
 
     ipmap_init(&map2, 0);
-    ipmap_ipv6_set(&map2, &IPV6_ADDR_1, 2);
+    ipmap_ipv6_set(&map2, &addr, 2);
 
-    fail_unless(ipmap_is_not_equal(&map1, &map2),
+    fail_unless(!ipmap_is_equal(&map1, &map2),
                 "Expected {x} != {x}");
 
     ipmap_done(&map1);
@@ -668,19 +710,16 @@ END_TEST
 
 START_TEST(test_ipv6_memory_size_1)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
     size_t  expected, actual;
 
     ipmap_init(&map, 0);
-    ipmap_ipv6_set(&map, &IPV6_ADDR_1, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map, &addr, 1);
 
-#if GLIB_SIZEOF_VOID_P == 4
-    expected = 1548;
-#elif GLIB_SIZEOF_VOID_P == 8
-    expected = 3096;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 129 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -693,19 +732,16 @@ END_TEST
 
 START_TEST(test_ipv6_memory_size_2)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
     size_t  expected, actual;
 
     ipmap_init(&map, 0);
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_1, 32, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 32, 1);
 
-#if GLIB_SIZEOF_VOID_P == 4
-    expected = 396;
-#elif GLIB_SIZEOF_VOID_P == 8
-    expected = 792;
-#else
-#   error "Unknown architecture: not 32-bit or 64-bit"
-#endif
+    expected = 33 * sizeof(struct ipset_node);
     actual = ipmap_memory_size(&map);
 
     fail_unless(expected == actual,
@@ -718,12 +754,17 @@ END_TEST
 
 START_TEST(test_ipv6_store_01)
 {
-    ip_map_t  map;
+    DESCRIBE_TEST;
+    struct ip_map  map;
+    struct cork_ipv6  addr;
 
     ipmap_init(&map, 0);
-    ipmap_ipv6_set(&map, &IPV6_ADDR_1, 1);
-    ipmap_ipv6_set(&map, &IPV6_ADDR_2, 2);
-    ipmap_ipv6_set_network(&map, &IPV6_ADDR_3, 32, 2);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set(&map, &addr, 1);
+    cork_ipv6_init(&addr, "fe80::21e:c2ff:fe9f:e8e2");
+    ipmap_ipv6_set(&map, &addr, 2);
+    cork_ipv6_init(&addr, "fe80:1::21e:c2ff:fe9f:e8e1");
+    ipmap_ipv6_set_network(&map, &addr, 32, 2);
     test_round_trip(&map);
     ipmap_done(&map);
 }
@@ -742,7 +783,6 @@ ipmap_suite()
     TCase  *tc_general = tcase_create("general");
     tcase_add_test(tc_general, test_map_starts_empty);
     tcase_add_test(tc_general, test_empty_maps_equal);
-    tcase_add_test(tc_general, test_empty_maps_not_unequal);
     tcase_add_test(tc_general, test_different_defaults_unequal);
     tcase_add_test(tc_general, test_store_empty_01);
     tcase_add_test(tc_general, test_store_empty_02);
@@ -752,14 +792,15 @@ ipmap_suite()
     tcase_add_test(tc_ipv4, test_ipv4_insert_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_02);
     tcase_add_test(tc_ipv4, test_ipv4_insert_03);
-    tcase_add_test(tc_ipv4, test_ipv4_insert_04);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_01);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_02);
     tcase_add_test(tc_ipv4, test_ipv4_insert_network_03);
-    tcase_add_test(tc_ipv4, test_ipv4_insert_network_04);
-    tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_01);
-    tcase_add_test(tc_ipv4, test_ipv4_bad_netmask_02);
+    tcase_add_test(tc_ipv4, test_ipv4_overwrite_01);
+    tcase_add_test(tc_ipv4, test_ipv4_overwrite_02);
+    tcase_add_test(tc_ipv4, test_ipv4_bad_cidr_prefix_01);
     tcase_add_test(tc_ipv4, test_ipv4_equality_1);
+    tcase_add_test(tc_ipv4, test_ipv4_equality_2);
+    tcase_add_test(tc_ipv4, test_ipv4_equality_3);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_1);
     tcase_add_test(tc_ipv4, test_ipv4_inequality_2);
     tcase_add_test(tc_ipv4, test_ipv4_memory_size_1);
@@ -771,14 +812,13 @@ ipmap_suite()
     tcase_add_test(tc_ipv6, test_ipv6_insert_01);
     tcase_add_test(tc_ipv6, test_ipv6_insert_02);
     tcase_add_test(tc_ipv6, test_ipv6_insert_03);
-    tcase_add_test(tc_ipv6, test_ipv6_insert_04);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_01);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_02);
     tcase_add_test(tc_ipv6, test_ipv6_insert_network_03);
-    tcase_add_test(tc_ipv6, test_ipv6_insert_network_04);
-    tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_01);
-    tcase_add_test(tc_ipv6, test_ipv6_bad_netmask_02);
+    tcase_add_test(tc_ipv6, test_ipv6_bad_cidr_prefix_01);
     tcase_add_test(tc_ipv6, test_ipv6_equality_1);
+    tcase_add_test(tc_ipv6, test_ipv6_equality_2);
+    tcase_add_test(tc_ipv6, test_ipv6_equality_3);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_1);
     tcase_add_test(tc_ipv6, test_ipv6_inequality_2);
     tcase_add_test(tc_ipv6, test_ipv6_memory_size_1);

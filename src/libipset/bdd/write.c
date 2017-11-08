@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2010, RedJack, LLC.
+ * Copyright © 2010-2013, RedJack, LLC.
  * All rights reserved.
  *
  * Please see the LICENSE.txt file in this distribution for license
@@ -8,38 +8,11 @@
  * ----------------------------------------------------------------------
  */
 
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
+#include <libcork/core.h>
+#include <libcork/helpers/errors.h>
 
-#include <glib.h>
-
-#include <ipset/bdd/nodes.h>
-#include <ipset/logging.h>
-
-
-/**
- * A helper method that calls a function that expects a GError
- * location as its last parameter.  If the function raises an error,
- * that error is propagated into the “err” parameter (which should be
- * the last parameter of the enclosing function).  We then “return”
- * the desired value by assigning it to the “result” variable (which
- * you must define), and branching to a label called “error” (which
- * you must also define), which can contain any cleanup code (this
- * equivalent of a finally block).
- */
-
-#define TRY_OR_RETURN(result_val, func, ...)    \
-    G_STMT_START {                              \
-        GError  *suberror = NULL;               \
-        func(__VA_ARGS__, &suberror);           \
-        if (suberror != NULL)                   \
-        {                                       \
-            g_propagate_error(err, suberror);   \
-            result = (result_val);              \
-            goto error;                         \
-        }                                       \
-    } G_STMT_END
+#include "ipset/bdd/nodes.h"
+#include "ipset/logging.h"
 
 
 /*-----------------------------------------------------------------------
@@ -54,62 +27,57 @@
  * on.
  */
 
-typedef gint  serialized_id_t;
+typedef int  serialized_id;
 
 
 /* forward declaration */
-
-typedef struct save_data save_data_t;
-
-
-/**
- * A callback that outputs any necessary header.  Should return a
- * gboolean indicating whether the write was successful.
- */
-
-typedef gboolean
-(*write_header_t)(save_data_t *save_data,
-                  ipset_node_cache_t *cache,
-                  ipset_node_id_t root,
-                  GError **err);
+struct save_data;
 
 
 /**
- * A callback that outputs any necessary footer.  Should return a
- * gboolean indicating whether the write was successful.
+ * A callback that outputs any necessary header.  Should return an int
+ * status code indicating whether the write was successful.
  */
 
-typedef gboolean
-(*write_footer_t)(save_data_t *save_data,
-                  ipset_node_cache_t *cache,
-                  ipset_node_id_t root,
-                  GError **err);
+typedef int
+(*write_header_func)(struct save_data *save_data,
+                     struct ipset_node_cache *cache,
+                     ipset_node_id root);
+
+
+/**
+ * A callback that outputs any necessary footer.  Should return an int
+ * status code indicating whether the write was successful.
+ */
+
+typedef int
+(*write_footer_func)(struct save_data *save_data,
+                     struct ipset_node_cache *cache,
+                     ipset_node_id root);
 
 
 /**
  * A callback that actually outputs a terminal node to disk.  Should
- * return a gboolean indicating whether the write was successful.
+ * return an int status code indicating whether the write was successful.
  */
 
-typedef gboolean
-(*write_terminal_t)(save_data_t *save_data,
-                    ipset_range_t terminal_value,
-                    GError **err);
+typedef int
+(*write_terminal_func)(struct save_data *save_data,
+                       ipset_value terminal_value);
 
 
 /**
  * A callback that actually outputs a nonterminal node to disk.
- * Should return a gboolean indicating whether the write was
+ * Should return an int status code indicating whether the write was
  * successful.
  */
 
-typedef gboolean
-(*write_nonterminal_t)(save_data_t *save_data,
-                       serialized_id_t serialized_id,
-                       ipset_variable_t variable,
-                       serialized_id_t serialized_low,
-                       serialized_id_t serialized_high,
-                       GError **err);
+typedef int
+(*write_nonterminal_func)(struct save_data *save_data,
+                          serialized_id serialized_node,
+                          ipset_variable variable,
+                          serialized_id serialized_low,
+                          serialized_id serialized_high);
 
 
 /**
@@ -117,57 +85,35 @@ typedef gboolean
  * during the execution of a save.
  */
 
-struct save_data
-{
-    /**
-     * The output stream to save the data to.
-     */
+struct save_data {
+    /* The node cache that we're saving nodes from. */
+    struct ipset_node_cache  *cache;
 
-    FILE  *stream;
+    /* The output stream to save the data to. */
+    struct cork_stream_consumer  *stream;
 
-    /**
-     * The cache of serialized IDs for any nonterminals that we've
-     * encountered so far.
-     */
+    /* The cache of serialized IDs for any nonterminals that we've
+     * encountered so far. */
+    struct cork_hash_table  *serialized_ids;
 
-    GHashTable  *serialized_ids;
+    /* The serialized ID to use for the next nonterminal that we
+     * encounter. */
+    serialized_id  next_serialized_id;
 
-    /**
-     * The serialized ID to use for the next nonterminal that we
-     * encounter.
-     */
+    /* The callback used to write the file header to the stream. */
+    write_header_func  write_header;
 
-    serialized_id_t  next_serialized_id;
+    /* The callback used to write the file footer to the stream. */
+    write_footer_func  write_footer;
 
-    /**
-     * The callback used to write the file header to the stream.
-     */
+    /* The callback used to write terminals to the stream. */
+    write_terminal_func  write_terminal;
 
-    write_header_t  write_header;
+    /* The callback used to write nonterminals to the stream. */
+    write_nonterminal_func  write_nonterminal;
 
-    /**
-     * The callback used to write the file footer to the stream.
-     */
-
-    write_footer_t  write_footer;
-
-    /**
-     * The callback used to write terminals to the stream.
-     */
-
-    write_terminal_t  write_terminal;
-
-    /**
-     * The callback used to write nonterminals to the stream.
-     */
-
-    write_nonterminal_t  write_nonterminal;
-
-    /**
-     * A pointer to any additional data needed by the callbacks.
-     */
-
-    gpointer  user_data;
+    /* A pointer to any additional data needed by the callbacks. */
+    void  *user_data;
 };
 
 
@@ -175,186 +121,107 @@ struct save_data
  * A helper function for ipset_node_save().  Outputs a nonterminal
  * node in a BDD tree, if we haven't done so already.  Ensures that
  * the children of the nonterminal are output before the nonterminal
- * is.  Return the serialized ID of this node.
+ * is.  Returns the serialized ID of this node.
  */
 
-serialized_id_t
-save_visit_node(save_data_t *save_data,
-                ipset_node_id_t node_id,
-                GError **err)
+static int
+save_visit_node(struct save_data *save_data,
+                ipset_node_id node_id, serialized_id *dest)
 {
-    serialized_id_t  result;
+    /* Check whether we've already serialized this node. */
 
-    /*
-     * Check whether we've already serialized this node.
-     */
+    struct cork_hash_table_entry  *entry;
+    bool  is_new;
+    entry = cork_hash_table_get_or_create
+        (save_data->serialized_ids, (void *) (uintptr_t) node_id, &is_new);
 
-    gpointer  serialized_ptr;
-    gboolean  node_exists =
-        g_hash_table_lookup_extended
-        (save_data->serialized_ids,
-         node_id,
-         NULL,
-         &serialized_ptr);
-
-    if (node_exists)
-    {
-        result = GPOINTER_TO_INT(serialized_ptr);
+    if (!is_new) {
+        *dest = (intptr_t) entry->value;
+        return 0;
     } else {
-        if (ipset_node_get_type(node_id) == IPSET_TERMINAL_NODE)
-        {
-            /*
-             * For terminals, there isn't really anything to do — we
+        if (ipset_node_get_type(node_id) == IPSET_TERMINAL_NODE) {
+            /* For terminals, there isn't really anything to do — we
              * just output the terminal node and use its value as the
-             * serialized ID.
-             */
+             * serialized ID. */
 
-            ipset_range_t  value = ipset_terminal_value(node_id);
+            ipset_value  value = ipset_terminal_value(node_id);
 
-            g_d_debug("Writing terminal(%d)", value);
-
-            TRY_OR_RETURN(0,
-                          save_data->write_terminal,
-                          save_data,
-                          value);
-
-            result = value;
+            DEBUG("Writing terminal(%d)", value);
+            rii_check(save_data->write_terminal(save_data, value));
+            entry->value = (void *) (intptr_t) value;
+            *dest = value;
+            return 0;
         } else {
-            /*
-             * For nonterminals, we drill down into the node's
-             * children first, then output the nonterminal node.
-             */
+            /* For nonterminals, we drill down into the node's children
+             * first, then output the nonterminal node. */
 
-            ipset_node_t  *node = ipset_nonterminal_node(node_id);
+            struct ipset_node  *node =
+                ipset_node_cache_get_nonterminal(save_data->cache, node_id);
+            DEBUG("Visiting node %u nonterminal(x%u? %u: %u)",
+                  node_id, node->variable, node->high, node->low);
 
-            g_d_debug("Visiting node %p nonterminal(%u,%p,%p)",
-                      node_id, node->variable, node->low, node->high);
+            /* Output the node's nonterminal children before we output
+             * the node itself. */
+            serialized_id  serialized_low;
+            serialized_id  serialized_high;
+            rii_check(save_visit_node(save_data, node->low, &serialized_low));
+            rii_check(save_visit_node(save_data, node->high, &serialized_high));
 
-            /*
-             * Output the node's nonterminal children before we output
-             * the node itself.
-             */
+            /* Output the nonterminal */
+            serialized_id  result = save_data->next_serialized_id--;
+            DEBUG("Writing node %u as serialized node %d = (x%u? %d: %d)",
+                  node_id, result,
+                  node->variable, serialized_low, serialized_high);
 
-            serialized_id_t  serialized_low;
-            serialized_id_t  serialized_high;
-
-            TRY_OR_RETURN(0,
-                          serialized_low = save_visit_node,
-                          save_data,
-                          node->low);
-
-            TRY_OR_RETURN(0,
-                          serialized_high = save_visit_node,
-                          save_data,
-                          node->high);
-
-            /*
-             * Output the nonterminal
-             */
-
-            result = save_data->next_serialized_id--;
-            g_d_debug("Writing node %p as serialized node %d"
-                      " = (%u,%d,%d)",
-                      node_id, result,
-                      node->variable, serialized_low, serialized_high);
-
-            TRY_OR_RETURN(0,
-                          save_data->write_nonterminal,
-                          save_data,
-                          result, node->variable,
-                          serialized_low,
-                          serialized_high);
+            entry->value = (void *) (intptr_t) result;
+            *dest = result;
+            return save_data->write_nonterminal
+                (save_data, result, node->variable,
+                 serialized_low, serialized_high);
         }
-
-        /*
-         * Save the serialized ID in the hash table, so that we don't
-         * output this node again.
-         */
-
-        g_hash_table_insert(save_data->serialized_ids, node_id,
-                            GINT_TO_POINTER(result));
     }
-
-    return result;
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
 }
 
 
-static gboolean
-save_bdd(save_data_t *save_data,
-         ipset_node_cache_t *cache,
-         ipset_node_id_t root,
-         GError **err)
+static int
+save_bdd(struct save_data *save_data,
+         struct ipset_node_cache *cache, ipset_node_id root)
 {
-    gboolean  result = FALSE;
+    /* First, output the file header. */
 
-    /*
-     * First, output the file header.
-     */
+    DEBUG("Writing file header");
+    rii_check(save_data->write_header(save_data, cache, root));
 
-    g_d_debug("Writing file header");
-
-    TRY_OR_RETURN(FALSE,
-                  save_data->write_header,
-                  save_data, cache, root);
-
-    /*
-     * The serialized node IDs are different than the in-memory node
+    /* The serialized node IDs are different than the in-memory node
      * IDs.  This means that, for our nonterminal nodes, we need a
-     * mapping from internal node ID to serialized node ID.
-     */
+     * mapping from internal node ID to serialized node ID. */
 
-    g_d_debug("Creating file caches");
-
-    save_data->serialized_ids = g_hash_table_new(NULL, NULL);
+    DEBUG("Creating file caches");
+    save_data->serialized_ids = cork_pointer_hash_table_new(0, 0);
     save_data->next_serialized_id = -1;
 
-    /*
-     * Trace down through the BDD tree, outputting each terminal and
-     * nonterminal node as they're encountered.
-     */
+    /* Trace down through the BDD tree, outputting each terminal and
+     * nonterminal node as they're encountered. */
 
-    g_d_debug("Writing nodes");
+    DEBUG("Writing nodes");
 
-    serialized_id_t  last_serialized_id;
+    serialized_id  last_serialized_id;
+    ei_check(save_visit_node(save_data, root, &last_serialized_id));
 
-    TRY_OR_RETURN(FALSE,
-                  last_serialized_id = save_visit_node,
-                  save_data,
-                  root);
+    /* Finally, output the file footer and cleanup. */
 
-    /*
-     * Finally, output the file footer and cleanup.
-     */
+    DEBUG("Writing file footer");
+    ei_check(save_data->write_footer(save_data, cache, root));
 
-    g_d_debug("Writing file footer");
-
-    TRY_OR_RETURN(FALSE,
-                  save_data->write_footer,
-                  save_data, cache, root);
-
-    g_d_debug("Freeing file caches");
-
-    g_hash_table_destroy(save_data->serialized_ids);
-
-    return TRUE;
+    DEBUG("Freeing file caches");
+    cork_hash_table_free(save_data->serialized_ids);
+    return 0;
 
   error:
-    /*
-     * If there's an error, clean up the objects that we've created
-     * before returning.
-     */
-
-    if (save_data->serialized_ids != NULL)
-        g_hash_table_destroy(save_data->serialized_ids);
-
-    return result;
+    /* If there's an error, clean up the objects that we've created
+     * before returning. */
+    cork_hash_table_free(save_data->serialized_ids);
+    return -1;
 }
 
 
@@ -363,45 +230,14 @@ save_bdd(save_data_t *save_data,
  */
 
 /**
- * Creates a GError based on the contents of errno.
- */
-
-static void
-create_errno_error(FILE *stream, GError **err)
-{
-    if (ferror(stream))
-    {
-        g_set_error(err,
-                    G_FILE_ERROR,
-                    g_file_error_from_errno(errno),
-                    "%s",
-                    strerror(errno));
-    }
-
-    else
-    {
-        g_set_error(err,
-                    G_FILE_ERROR,
-                    G_FILE_ERROR_FAILED,
-                    "Unknown I/O error");
-    }
-}
-
-/**
  * Write a NUL-terminated string to a stream.  If we can't write the
  * string for some reason, return an error.
  */
-
-static void
-write_string(FILE *stream, const gchar *str, GError **err)
+static int
+write_string(struct cork_stream_consumer *stream, const char *str)
 {
-    gsize  len = strlen(str);
-    if (fwrite(str, len, 1, stream) != 1)
-    {
-        GError  *suberr = NULL;
-        create_errno_error(stream, &suberr);
-        g_propagate_error(err, suberr);
-    }
+    size_t  len = strlen(str);
+    return cork_stream_consumer_data(stream, str, len, false);
 }
 
 
@@ -409,17 +245,11 @@ write_string(FILE *stream, const gchar *str, GError **err)
  * Write a big-endian uint8 to a stream.  If we can't write the
  * integer for some reason, return an error.
  */
-
-static void
-write_uint8(FILE *stream, guint8 val, GError **err)
+static int
+write_uint8(struct cork_stream_consumer *stream, uint8_t val)
 {
     /* for a byte, we don't need to endian-swap */
-
-    gsize  num_written = fwrite(&val, sizeof(guint8), 1, stream);
-    if (num_written != 1)
-    {
-        create_errno_error(stream, err);
-    }
+    return cork_stream_consumer_data(stream, &val, sizeof(uint8_t), false);
 }
 
 
@@ -427,17 +257,11 @@ write_uint8(FILE *stream, guint8 val, GError **err)
  * Write a big-endian uint16 to a stream.  If we can't write the
  * integer for some reason, return an error.
  */
-
-static void
-write_uint16(FILE *stream, guint16 val, GError **err)
+static int
+write_uint16(struct cork_stream_consumer *stream, uint16_t val)
 {
-    val = GUINT16_TO_BE(val);
-
-    gsize  num_written = fwrite(&val, sizeof(guint16), 1, stream);
-    if (num_written != 1)
-    {
-        create_errno_error(stream, err);
-    }
+    CORK_UINT16_HOST_TO_BIG_IN_PLACE(val);
+    return cork_stream_consumer_data(stream, &val, sizeof(uint16_t), false);
 }
 
 
@@ -446,16 +270,11 @@ write_uint16(FILE *stream, guint16 val, GError **err)
  * integer for some reason, return an error.
  */
 
-static void
-write_uint32(FILE *stream, guint32 val, GError **err)
+static int
+write_uint32(struct cork_stream_consumer *stream, uint32_t val)
 {
-    val = GUINT32_TO_BE(val);
-
-    gsize  num_written = fwrite(&val, sizeof(guint32), 1, stream);
-    if (num_written != 1)
-    {
-        create_errno_error(stream, err);
-    }
+    CORK_UINT32_HOST_TO_BIG_IN_PLACE(val);
+    return cork_stream_consumer_data(stream, &val, sizeof(uint32_t), false);
 }
 
 
@@ -464,16 +283,11 @@ write_uint32(FILE *stream, guint32 val, GError **err)
  * integer for some reason, return an error.
  */
 
-static void
-write_uint64(FILE *stream, guint64 val, GError **err)
+static int
+write_uint64(struct cork_stream_consumer *stream, uint64_t val)
 {
-    val = GUINT64_TO_BE(val);
-
-    gsize  num_written = fwrite(&val, sizeof(guint64), 1, stream);
-    if (num_written != 1)
-    {
-        create_errno_error(stream, err);
-    }
+    CORK_UINT64_HOST_TO_BIG_IN_PLACE(val);
+    return cork_stream_consumer_data(stream, &val, sizeof(uint64_t), false);
 }
 
 
@@ -482,173 +296,97 @@ write_uint64(FILE *stream, guint64 val, GError **err)
  */
 
 static const char  MAGIC_NUMBER[] = "IP set";
-static const gsize  MAGIC_NUMBER_LENGTH = 6;
+static const size_t  MAGIC_NUMBER_LENGTH = sizeof(MAGIC_NUMBER) - 1;
 
 
-static gboolean
-write_header_v1(save_data_t *save_data,
-                ipset_node_cache_t *cache,
-                ipset_node_id_t root,
-                GError **err)
+static int
+write_header_v1(struct save_data *save_data,
+                struct ipset_node_cache *cache, ipset_node_id root)
 {
-    gboolean  result = FALSE;
+    /* Output the magic number for an IP set, and the file format
+     * version that we're going to write. */
+    rii_check(cork_stream_consumer_data(save_data->stream, NULL, 0, true));
+    rii_check(write_string(save_data->stream, MAGIC_NUMBER));
+    rii_check(write_uint16(save_data->stream, 0x0001));
 
-    /*
-     * Output the magic number for an IP set, and the file format
-     * version that we're going to write.
-     */
-
-    TRY_OR_RETURN(FALSE, write_string, save_data->stream, MAGIC_NUMBER);
-    TRY_OR_RETURN(FALSE, write_uint16, save_data->stream, 0x0001);
-
-    /*
-     * Determine how many reachable nodes there are, to calculate the
-     * size of the set.
-     */
-
-    gsize  nonterminal_count = ipset_node_reachable_count(root);
-
-    gsize  set_size =
+    /* Determine how many reachable nodes there are, to calculate the
+     * size of the set. */
+    size_t  nonterminal_count = ipset_node_reachable_count(cache, root);
+    size_t  set_size =
         MAGIC_NUMBER_LENGTH +    /* magic number */
-        sizeof(guint16) +        /* version number  */
-        sizeof(guint64) +        /* length of set */
-        sizeof(guint32) +        /* number of nonterminals */
+        sizeof(uint16_t) +        /* version number  */
+        sizeof(uint64_t) +        /* length of set */
+        sizeof(uint32_t) +        /* number of nonterminals */
         (nonterminal_count *     /* for each nonterminal: */
-         (sizeof(guint8) +       /*   variable number */
-          sizeof(guint32) +      /*   low pointer */
-          sizeof(guint32)        /*   high pointer */
+         (sizeof(uint8_t) +       /*   variable number */
+          sizeof(uint32_t) +      /*   low pointer */
+          sizeof(uint32_t)        /*   high pointer */
          ));
 
-    /*
-     * If the root is a terminal, we need to add 4 bytes to the set
-     * size, for storing the terminal value.
-     */
-
-    if (ipset_node_get_type(root) == IPSET_TERMINAL_NODE)
-    {
-        set_size += sizeof(guint32);
+    /* If the root is a terminal, we need to add 4 bytes to the set
+     * size, for storing the terminal value. */
+    if (ipset_node_get_type(root) == IPSET_TERMINAL_NODE) {
+        set_size += sizeof(uint32_t);
     }
 
-    TRY_OR_RETURN(FALSE, write_uint64, save_data->stream, set_size);
-    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, nonterminal_count);
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    rii_check(write_uint64(save_data->stream, set_size));
+    rii_check(write_uint32(save_data->stream, nonterminal_count));
+    return 0;
 }
 
 
-static gboolean
-write_footer_v1(save_data_t *save_data,
-                ipset_node_cache_t *cache,
-                ipset_node_id_t root,
-                GError **err)
+static int
+write_footer_v1(struct save_data *save_data,
+                struct ipset_node_cache *cache, ipset_node_id root)
 {
-    gboolean  result = FALSE;
+    /* If the root is a terminal node, then we output the terminal value
+     * in place of the (nonexistent) list of nonterminal nodes. */
 
-    /*
-     * If the root is a terminal node, then we output the terminal
-     * value in place of the (nonexistent) list of nonterminal nodes.
-     */
-
-    if (ipset_node_get_type(root) == IPSET_TERMINAL_NODE)
-    {
-        ipset_range_t  value = ipset_terminal_value(root);
-
-        TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, value);
+    if (ipset_node_get_type(root) == IPSET_TERMINAL_NODE) {
+        ipset_value  value = ipset_terminal_value(root);
+        return write_uint32(save_data->stream, value);
     }
 
-    return TRUE;
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    return 0;
 }
 
 
-static gboolean
-write_terminal_v1(save_data_t *save_data,
-                  ipset_range_t terminal_value,
-                  GError **err)
+static int
+write_terminal_v1(struct save_data *save_data, ipset_value terminal_value)
 {
-    /*
-     * We don't have to write anything out for a terminal in a V1
-     * file, since the terminal's value will be encoded into the node
-     * ID wherever it's used.
-     */
-
-    return TRUE;
+    /* We don't have to write anything out for a terminal in a V1 file,
+     * since the terminal's value will be encoded into the node ID
+     * wherever it's used. */
+    return 0;
 }
 
 
-static gboolean
-write_nonterminal_v1(save_data_t *save_data,
-                     serialized_id_t serialized_id,
-                     ipset_variable_t variable,
-                     serialized_id_t serialized_low,
-                     serialized_id_t serialized_high,
-                     GError **err)
+static int
+write_nonterminal_v1(struct save_data *save_data,
+                     serialized_id serialized_node,
+                     ipset_variable variable,
+                     serialized_id serialized_low,
+                     serialized_id serialized_high)
 {
-    gboolean  result = FALSE;
-
-    TRY_OR_RETURN(FALSE, write_uint8, save_data->stream, variable);
-    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, serialized_low);
-    TRY_OR_RETURN(FALSE, write_uint32, save_data->stream, serialized_high);
-
-    return TRUE;
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    rii_check(write_uint8(save_data->stream, variable));
+    rii_check(write_uint32(save_data->stream, serialized_low));
+    rii_check(write_uint32(save_data->stream, serialized_high));
+    return 0;
 }
 
 
-gboolean
-ipset_node_cache_save(FILE *stream,
-                      ipset_node_cache_t *cache,
-                      ipset_node_id_t node,
-                      GError **err)
+int
+ipset_node_cache_save(struct cork_stream_consumer *stream, struct ipset_node_cache *cache,
+                      ipset_node_id node)
 {
-    g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-
-    gboolean  result = FALSE;
-
-    save_data_t  save_data = {
-        stream,                 /* output stream */
-        NULL,                   /* serialized ID cache */
-        0,                      /* next serialized ID */
-        write_header_v1,        /* header writer */
-        write_footer_v1,        /* footer writer */
-        write_terminal_v1,      /* terminal writer */
-        write_nonterminal_v1,   /* nonterminal writer */
-        NULL                    /* user data */
-    };
-
-    /*
-     * Then use the generic saving functions to output the file.
-     */
-
-    TRY_OR_RETURN(FALSE,
-                  save_bdd,
-                  &save_data, cache, node);
-
-    return TRUE;
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    struct save_data  save_data;
+    save_data.cache = cache;
+    save_data.stream = stream;
+    save_data.write_header = write_header_v1;
+    save_data.write_footer = write_footer_v1;
+    save_data.write_terminal = write_terminal_v1;
+    save_data.write_nonterminal = write_nonterminal_v1;
+    return save_bdd(&save_data, cache, node);
 }
 
 
@@ -656,297 +394,163 @@ ipset_node_cache_save(FILE *stream,
  * GraphViz dot file
  */
 
-static const gchar  *GRAPHVIZ_HEADER =
+static const char  *GRAPHVIZ_HEADER =
     "strict digraph bdd {\n";
 
-static const gchar  *GRAPHVIZ_FOOTER =
+static const char  *GRAPHVIZ_FOOTER =
     "}\n";
 
 
-typedef struct dot_data
+struct dot_data {
+    /* The terminal value to leave out of the dot file.  This should be
+     * the default value of the set or map. */
+    ipset_value  default_value;
+
+    /* A scratch buffer */
+    struct cork_buffer  scratch;
+};
+
+
+static int
+write_header_dot(struct save_data *save_data,
+                 struct ipset_node_cache *cache, ipset_node_id root)
 {
-    /**
-     * The terminal value to leave out of the dot file.  This should
-     * be the default value of the set or map.
-     */
-
-    ipset_range_t  default_value;
-
-} dot_data_t;
-
-
-static gboolean
-write_header_dot(save_data_t *save_data,
-                 ipset_node_cache_t *cache,
-                 ipset_node_id_t root,
-                 GError **err)
-{
-    gboolean  result = FALSE;
-
-    /*
-     * Output the opening clause of the GraphViz script.
-     */
-
-    TRY_OR_RETURN(FALSE, write_string, save_data->stream, GRAPHVIZ_HEADER);
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    /* Output the opening clause of the GraphViz script. */
+    rii_check(cork_stream_consumer_data(save_data->stream, NULL, 0, true));
+    return write_string(save_data->stream, GRAPHVIZ_HEADER);
 }
 
 
-static gboolean
-write_footer_dot(save_data_t *save_data,
-                 ipset_node_cache_t *cache,
-                 ipset_node_id_t root,
-                 GError **err)
+static int
+write_footer_dot(struct save_data *save_data,
+                 struct ipset_node_cache *cache, ipset_node_id root)
 {
-    gboolean  result = FALSE;
-
-    /*
-     * Output the closing clause of the GraphViz script.
-     */
-
-    TRY_OR_RETURN(FALSE, write_string, save_data->stream, GRAPHVIZ_FOOTER);
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    /* Output the closing clause of the GraphViz script. */
+    return write_string(save_data->stream, GRAPHVIZ_FOOTER);
 }
 
 
-static gboolean
-write_terminal_dot(save_data_t *save_data,
-                   ipset_range_t terminal_value,
-                   GError **err)
+static int
+write_terminal_dot(struct save_data *save_data, ipset_value terminal_value)
 {
-    gboolean  result = FALSE;
-    dot_data_t  *dot_data = (dot_data_t *) save_data->user_data;
+    struct dot_data  *dot_data = save_data->user_data;
 
-    /*
-     * If this terminal has the default value, skip it.
-     */
-
-    if (terminal_value == dot_data->default_value)
-    {
-        return TRUE;
+    /* If this terminal has the default value, skip it. */
+    if (terminal_value == dot_data->default_value) {
+        return 0;
     }
 
-    /*
-     * Output a node for the terminal value.
-     */
-
-    GString  *str = g_string_new(NULL);
-    g_string_printf(str,
-                    "    t%d [shape=box, label=%d];\n",
-                    terminal_value,
-                    terminal_value);
-
-    TRY_OR_RETURN(FALSE, write_string, save_data->stream, str->str);
-
-    g_string_free(str, TRUE);
-    return TRUE;
-
-  error:
-    /*
-     * Clean up the string on error.
-     */
-
-    g_string_free(str, TRUE);
-    return result;
+    /* Output a node for the terminal value. */
+    cork_buffer_printf
+        (&dot_data->scratch,
+         "    t%d [shape=box, label=%d];\n",
+         terminal_value, terminal_value);
+    return write_string(save_data->stream, dot_data->scratch.buf);
 }
 
 
-static gboolean
-write_nonterminal_dot(save_data_t *save_data,
-                      serialized_id_t serialized_id,
-                      ipset_variable_t variable,
-                      serialized_id_t serialized_low,
-                      serialized_id_t serialized_high,
-                      GError **err)
+static int
+write_nonterminal_dot(struct save_data *save_data,
+                      serialized_id serialized_node,
+                      ipset_variable variable,
+                      serialized_id serialized_low,
+                      serialized_id serialized_high)
 {
-    gboolean  result = FALSE;
-    dot_data_t  *dot_data = (dot_data_t *) save_data->user_data;
+    struct dot_data  *dot_data = save_data->user_data;
 
-    /*
-     * Include a node for the nonterminal value.
-     */
+    /* Include a node for the nonterminal value. */
+    cork_buffer_printf
+        (&dot_data->scratch,
+         "    n%d [shape=circle,label=%u];\n",
+         (-serialized_node), variable);
 
-    GString  *str = g_string_new(NULL);
-    g_string_printf(str,
-                    "    n%d [shape=circle,label=%u];\n",
-                    (-serialized_id), variable);
-
-    /*
-     * Include an edge for the low pointer.
-     */
-
-    if (serialized_low < 0)
-    {
-        /*
-         * The low pointer is a nonterminal.
-         */
-
-        g_string_append_printf(str,
-                               "    n%d -> n%d",
-                               (-serialized_id),
-                               (-serialized_low));
+    /* Include an edge for the low pointer. */
+    if (serialized_low < 0) {
+        /* The low pointer is a nonterminal. */
+        cork_buffer_append_printf
+            (&dot_data->scratch,
+             "    n%d -> n%d",
+             (-serialized_node), (-serialized_low));
     } else {
-        /*
-         * The low pointer is a terminal.
-         */
+        /* The low pointer is a terminal. */
+        ipset_value  low_value = (ipset_value) serialized_low;
 
-        ipset_range_t  low_value = (ipset_range_t) serialized_low;
-
-        if (low_value == dot_data->default_value)
-        {
-            /*
-             * The terminal is the default value, so instead of a real
-             * terminal, connect this pointer to a dummy circle node.
-             */
-
-            g_string_append_printf(str,
-                                   "    low%d [shape=circle,label=\"\"]\n"
-                                   "    n%d -> low%d",
-                                   (-serialized_id),
-                                   (-serialized_id),
-                                   (-serialized_id));
+        if (low_value == dot_data->default_value) {
+            /* The terminal is the default value, so instead of a real
+             * terminal, connect this pointer to a dummy circle node. */
+            cork_buffer_append_printf
+                (&dot_data->scratch,
+                 "    low%d [shape=circle,label=\"\"]\n"
+                 "    n%d -> low%d",
+                 (-serialized_node), (-serialized_node), (-serialized_node));
         } else {
-            /*
-             * The terminal isn't a default, so go ahead and output
-             * it.
-             */
-
-            g_string_append_printf(str,
-                                   "    n%d -> t%d",
-                                   (-serialized_id),
-                                   serialized_low);
+            /* The terminal isn't a default, so go ahead and output it. */
+            cork_buffer_append_printf
+                (&dot_data->scratch,
+                 "    n%d -> t%d",
+                 (-serialized_node), serialized_low);
         }
     }
 
-    g_string_append_printf(str,
-                           " [style=dashed,color=red]\n");
+    cork_buffer_append_printf
+        (&dot_data->scratch, " [style=dashed,color=red]\n");
 
-    /*
-     * Include an edge for the high pointer.
-     */
-
-    if (serialized_high < 0)
-    {
-        /*
-         * The high pointer is a nonterminal.
-         */
-
-        g_string_append_printf(str,
-                               "    n%d -> n%d",
-                               (-serialized_id),
-                               (-serialized_high));
+    /* Include an edge for the high pointer. */
+    if (serialized_high < 0) {
+        /* The high pointer is a nonterminal. */
+        cork_buffer_append_printf
+            (&dot_data->scratch,
+             "    n%d -> n%d",
+             (-serialized_node), (-serialized_high));
     } else {
-        /*
-         * The high pointer is a terminal.
-         */
+        /* The high pointer is a terminal. */
+        ipset_value  high_value = (ipset_value) serialized_high;
 
-        ipset_range_t  high_value = (ipset_range_t) serialized_high;
-
-        if (high_value == dot_data->default_value)
-        {
-            /*
-             * The terminal is the default value, so instead of a real
-             * terminal, connect this pointer to a dummy circle node.
-             */
-
-            g_string_append_printf(str,
-                                   "    high%d "
-                                   "[shape=circle,"
-                                   "fixedsize=true,"
-                                   "height=0.25,"
-                                   "width=0.25,"
-                                   "label=\"\"]\n"
-                                   "    n%d -> high%d",
-                                   (-serialized_id),
-                                   (-serialized_id),
-                                   (-serialized_id));
+        if (high_value == dot_data->default_value) {
+            /* The terminal is the default value, so instead of a real
+             * terminal, connect this pointer to a dummy circle node. */
+            cork_buffer_append_printf
+                (&dot_data->scratch,
+                 "    high%d "
+                 "[shape=circle,"
+                 "fixedsize=true,"
+                 "height=0.25,"
+                 "width=0.25,"
+                 "label=\"\"]\n"
+                 "    n%d -> high%d",
+                 (-serialized_node), (-serialized_node), (-serialized_node));
         } else {
-            /*
-             * The terminal isn't a default, so go ahead and output
-             * it.
-             */
-
-            g_string_append_printf(str,
-                                   "    n%d -> t%d",
-                                   (-serialized_id),
-                                   serialized_high);
+            /* The terminal isn't a default, so go ahead and output it. */
+            cork_buffer_append_printf
+                (&dot_data->scratch,
+                 "    n%d -> t%d",
+                 (-serialized_node), serialized_high);
         }
     }
 
-    g_string_append_printf(str,
-                           " [style=solid,color=black]\n");
+    cork_buffer_append_printf
+        (&dot_data->scratch, " [style=solid,color=black]\n");
 
-    /*
-     * Output the clauses to the stream.
-     */
-
-    TRY_OR_RETURN(FALSE, write_string, save_data->stream, str->str);
-
-    g_string_free(str, TRUE);
-
-    return TRUE;
-
-  error:
-    /*
-     * Clean up the string on error.
-     */
-
-    g_string_free(str, TRUE);
-    return result;
+    /* Output the clauses to the stream. */
+    return write_string(save_data->stream, dot_data->scratch.buf);
 }
 
 
-gboolean
-ipset_node_cache_save_dot(FILE *stream,
-                          ipset_node_cache_t *cache,
-                          ipset_node_id_t node,
-                          GError **err)
+int
+ipset_node_cache_save_dot(struct cork_stream_consumer *stream,
+                          struct ipset_node_cache *cache, ipset_node_id node)
 {
-    g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-
-    gboolean  result = FALSE;
-
-    dot_data_t  dot_data = {
+    struct dot_data  dot_data = {
         0                       /* default value */
     };
 
-    save_data_t  save_data = {
-        stream,                 /* output stream */
-        NULL,                   /* serialized ID cache */
-        0,                      /* next serialized ID */
-        write_header_dot,       /* header writer */
-        write_footer_dot,       /* footer writer */
-        write_terminal_dot,     /* terminal writer */
-        write_nonterminal_dot,  /* nonterminal writer */
-        &dot_data
-    };
-
-    /*
-     * Then use the generic saving functions to output the file.
-     */
-
-    TRY_OR_RETURN(FALSE,
-                  save_bdd,
-                  &save_data, cache, node);
-
-    return TRUE;
-
-  error:
-    /*
-     * There's no cleanup to do on an error.
-     */
-
-    return result;
+    struct save_data  save_data;
+    save_data.cache = cache;
+    save_data.stream = stream;
+    save_data.write_header = write_header_dot;
+    save_data.write_footer = write_footer_dot;
+    save_data.write_terminal = write_terminal_dot;
+    save_data.write_nonterminal = write_nonterminal_dot;
+    save_data.user_data = &dot_data;
+    return save_bdd(&save_data, cache, node);
 }
