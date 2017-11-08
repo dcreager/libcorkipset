@@ -7,10 +7,16 @@
 # details.
 # ----------------------------------------------------------------------
 
-include_directories(../include)
-
 #-----------------------------------------------------------------------
 # Examples
 
-add_executable(ipv4-set-size ipv4-set-size.c)
-target_link_libraries(ipv4-set-size ${CORK_LIBRARIES} libipset)
+add_c_executable(
+    ipv4-set-size
+    SKIP_INSTALL
+    OUTPUT_NAME ipv4-set-size
+    SOURCES ipv4-set-size.c
+    LIBRARIES
+        libcork
+    LOCAL_LIBRARIES
+        libipset
+)
