@@ -5,10 +5,10 @@ import sys, os
 extensions = ['sphinx.ext.intersphinx']
 source_suffix = '.rst'
 master_doc = 'index'
-project_name = u'IP set'
-project_slug = u'ipset'
-company = u'RedJack, LLC'
-copyright_years = u'2009-2012'
+project_name = u'libcorkipset'
+project_slug = u'libcorkipset'
+company = u'libcorkipset authors'
+copyright_years = u'2009-2017'
 
 default_role = 'c:func'
 primary_domain = 'c'

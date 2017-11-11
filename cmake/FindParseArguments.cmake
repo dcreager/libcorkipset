@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------
-# Copyright © 2015, RedJack, LLC.
+# Copyright © 2015, libcorkipset authors
 # All rights reserved.
 #
 # Please see the COPYING file in this distribution for license details.
