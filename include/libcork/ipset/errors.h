@@ -7,8 +7,8 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef IPSET_ERRORS_H
-#define IPSET_ERRORS_H
+#ifndef LIBCORK_IPSET_ERRORS_H
+#define LIBCORK_IPSET_ERRORS_H
 
 
 #include <libcork/core.h>
@@ -27,4 +27,4 @@ enum ipset_error {
 };
 
 
-#endif  /* IPSET_ERRORS_H */
+#endif  /* LIBCORK_IPSET_ERRORS_H */

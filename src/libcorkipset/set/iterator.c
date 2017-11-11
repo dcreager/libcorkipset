@@ -11,10 +11,10 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/bits.h"
-#include "ipset/ipset.h"
-#include "ipset/logging.h"
+#include "libcork/ipset.h"
+#include "libcork/ipset/bits.h"
+#include "libcork/ipset/logging.h"
+#include "libcork/ipset/nodes.h"
 
 
 #define IPV4_BIT_SIZE  32

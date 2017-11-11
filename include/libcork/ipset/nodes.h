@@ -7,8 +7,8 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef IPSET_BDD_NODES_H
-#define IPSET_BDD_NODES_H
+#ifndef LIBCORK_IPSET_NODES_H
+#define LIBCORK_IPSET_NODES_H
 
 
 #include <stdio.h>
@@ -532,4 +532,4 @@ void
 ipset_bdd_iterator_advance(struct ipset_bdd_iterator *iterator);
 
 
-#endif  /* IPSET_BDD_NODES_H */
+#endif  /* LIBCORK_IPSET_NODES_H */

@@ -10,8 +10,8 @@
 #include <libcork/core.h>
 #include <libcork/helpers/errors.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/logging.h"
+#include "libcork/ipset/logging.h"
+#include "libcork/ipset/nodes.h"
 
 
 /*-----------------------------------------------------------------------

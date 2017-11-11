@@ -35,30 +35,30 @@
 # [1] http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html#Updating-version-info
 
 add_c_library(
-    libipset
-    OUTPUT_NAME ipset
-    PKGCONFIG_NAME ipset
+    libcorkipset
+    OUTPUT_NAME corkipset
+    PKGCONFIG_NAME libcorkipset
     VERSION_INFO 2:0:1
     SOURCES
-        libipset/general.c
-        libipset/bdd/assignments.c
-        libipset/bdd/basics.c
-        libipset/bdd/bdd-iterator.c
-        libipset/bdd/expanded.c
-        libipset/bdd/reachable.c
-        libipset/bdd/read.c
-        libipset/bdd/write.c
-        libipset/map/allocation.c
-        libipset/map/inspection.c
-        libipset/map/ipv4_map.c
-        libipset/map/ipv6_map.c
-        libipset/map/storage.c
-        libipset/set/allocation.c
-        libipset/set/inspection.c
-        libipset/set/ipv4_set.c
-        libipset/set/ipv6_set.c
-        libipset/set/iterator.c
-        libipset/set/storage.c
+        libcorkipset/general.c
+        libcorkipset/bdd/assignments.c
+        libcorkipset/bdd/basics.c
+        libcorkipset/bdd/bdd-iterator.c
+        libcorkipset/bdd/expanded.c
+        libcorkipset/bdd/reachable.c
+        libcorkipset/bdd/read.c
+        libcorkipset/bdd/write.c
+        libcorkipset/map/allocation.c
+        libcorkipset/map/inspection.c
+        libcorkipset/map/ipv4_map.c
+        libcorkipset/map/ipv6_map.c
+        libcorkipset/map/storage.c
+        libcorkipset/set/allocation.c
+        libcorkipset/set/inspection.c
+        libcorkipset/set/ipv4_set.c
+        libcorkipset/set/ipv6_set.c
+        libcorkipset/set/iterator.c
+        libcorkipset/set/storage.c
     LIBRARIES
         libcork
 )
@@ -71,7 +71,7 @@ add_c_executable(
     OUTPUT_NAME ipsetbuild
     SOURCES ipsetbuild/ipsetbuild.c
     LOCAL_LIBRARIES
-        libipset
+        libcorkipset
 )
 
 add_c_executable(
@@ -79,7 +79,7 @@ add_c_executable(
     OUTPUT_NAME ipsetcat
     SOURCES ipsetcat/ipsetcat.c
     LOCAL_LIBRARIES
-        libipset
+        libcorkipset
 )
 
 add_c_executable(
@@ -87,5 +87,5 @@ add_c_executable(
     OUTPUT_NAME ipsetdot
     SOURCES ipsetdot/ipsetdot.c
     LOCAL_LIBRARIES
-        libipset
+        libcorkipset
 )

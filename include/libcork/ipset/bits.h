@@ -7,8 +7,8 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef IPSET_BITS_H
-#define IPSET_BITS_H
+#ifndef LIBCORK_IPSET_BITS_H
+#define LIBCORK_IPSET_BITS_H
 
 #include <libcork/core.h>
 
@@ -54,4 +54,4 @@
      | ((val)? IPSET_BIT_ON_MASK(i): 0))
 
 
-#endif  /* IPSET_BITS_H */
+#endif  /* LIBCORK_IPSET_BITS_H */

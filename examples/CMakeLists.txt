@@ -17,5 +17,5 @@ add_c_executable(
     LIBRARIES
         libcork
     LOCAL_LIBRARIES
-        libipset
+        libcorkipset
 )

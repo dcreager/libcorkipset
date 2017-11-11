@@ -13,7 +13,7 @@
 #include <time.h>
 
 #include <libcork/core.h>
-#include <ipset/ipset.h>
+#include <libcork/ipset.h>
 
 
 static inline void

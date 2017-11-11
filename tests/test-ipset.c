@@ -13,7 +13,7 @@
 #include <check.h>
 #include <libcork/core.h>
 
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
 
 
 #define DESCRIBE_TEST  fprintf(stderr, "---\n%s\n", __func__)

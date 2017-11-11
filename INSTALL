@@ -1,25 +1,25 @@
 Installation instructions
 =========================
 
-The ipset library is written in ANSI C.  It uses cmake as its build
+The libcorkipset library is written in ANSI C.  It uses cmake as its build
 manager.
 
 
 Prerequisite libraries
 ----------------------
 
-To build ipset, you need the following libraries installed on your
+To build libcorkipset, you need the following libraries installed on your
 system:
 
   * pkg-config
-  * libcork (https://github.com/redjack/libcork)
+  * libcork (https://github.com/dcreager/libcork)
   * check (http://check.sourceforge.net)
 
 
 Building from source
 --------------------
 
-The ipset library uses cmake as its build manager.  In most cases, you
+The libcorkipset library uses cmake as its build manager.  In most cases, you
 should be able to build the source code using the following:
 
     $ mkdir build

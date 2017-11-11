@@ -3,12 +3,12 @@ exec_prefix=${prefix}
 libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 sharedir=${prefix}/share
-sphinxdir=${sharedir}/doc/ipset/html
+sphinxdir=${sharedir}/doc/libcorkipset/html
 
-Name: ipset
+Name: libcorkipset
 Description: Library for storing IP sets and maps
 Version: @VERSION@
-URL: http://github.com/dcreager/ipset/
+URL: https://github.com/dcreager/libcorkipset/
 Requires: libcork >= 0.12.0
-Libs: -L${libdir} -lipset
+Libs: -L${libdir} -lcorkipset
 Cflags: -I${includedir}

@@ -7,15 +7,14 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef IPSET_IPSET_H
-#define IPSET_IPSET_H
+#ifndef LIBCORK_IPSET_H
+#define LIBCORK_IPSET_H
 
 #include <stdio.h>
 
 #include <libcork/core.h>
 #include <libcork/ds.h>
-
-#include <ipset/bdd/nodes.h>
+#include <libcork/ipset/nodes.h>
 
 
 struct ip_set {
@@ -261,4 +260,4 @@ int
 ipmap_ip_get(struct ip_map *map, struct cork_ip *addr);
 
 
-#endif  /* IPSET_IPSET_H */
+#endif  /* LIBCORK_IPSET_H */
