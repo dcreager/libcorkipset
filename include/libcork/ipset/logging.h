@@ -7,8 +7,8 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef IPSET_LOGGING_H
-#define IPSET_LOGGING_H
+#ifndef LIBCORK_IPSET_LOGGING_H
+#define LIBCORK_IPSET_LOGGING_H
 
 
 #if !defined(IPSET_DEBUG)
@@ -27,4 +27,4 @@
 #endif
 
 
-#endif  /* IPSET_LOGGING_H */
+#endif  /* LIBCORK_IPSET_LOGGING_H */

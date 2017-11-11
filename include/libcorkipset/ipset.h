@@ -1,20 +1,16 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009, libcorkipset authors
+ * Copyright © 2017, libcorkipset authors
  * All rights reserved.
  *
  * Please see the COPYING file in this distribution for license details.
  * ----------------------------------------------------------------------
  */
 
-#include <libcork/core.h>
+#ifndef LIBCORKIPSET_IPSET_H
+#define LIBCORKIPSET_IPSET_H
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/ipset.h"
+#warning "<libcorkipset/ipset.h> is deprecated; use <libcork/ipset.h> instead"
+#include <libcork/ipset.h>
 
-
-int
-ipset_init_library()
-{
-    return 0;
-}
+#endif  /* LIBCORKIPSET_IPSET_H */

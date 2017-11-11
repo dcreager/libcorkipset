@@ -11,9 +11,9 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/bits.h"
-#include "ipset/logging.h"
+#include "libcork/ipset/bits.h"
+#include "libcork/ipset/logging.h"
+#include "libcork/ipset/nodes.h"
 
 
 static void

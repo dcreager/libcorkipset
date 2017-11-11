@@ -9,10 +9,10 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/bits.h"
-#include "ipset/errors.h"
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
+#include "libcork/ipset/bits.h"
+#include "libcork/ipset/errors.h"
+#include "libcork/ipset/nodes.h"
 
 
 /**

@@ -9,8 +9,8 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
+#include "libcork/ipset/nodes.h"
 
 bool
 ipmap_is_empty(const struct ip_map *map)

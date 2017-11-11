@@ -17,7 +17,7 @@
 
 #include <libcork/core.h>
 
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
 
 
 static char  *output_filename = NULL;

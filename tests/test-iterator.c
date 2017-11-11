@@ -12,7 +12,7 @@
 #include <check.h>
 #include <libcork/core.h>
 
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
 
 
 #define IPV4_BIT_SIZE  32

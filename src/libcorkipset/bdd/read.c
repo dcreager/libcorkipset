@@ -15,9 +15,9 @@
 #include <libcork/ds.h>
 #include <libcork/helpers/errors.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/errors.h"
-#include "ipset/logging.h"
+#include "libcork/ipset/errors.h"
+#include "libcork/ipset/logging.h"
+#include "libcork/ipset/nodes.h"
 
 
 static const char  MAGIC_NUMBER[] = "IP set";

@@ -7,7 +7,7 @@
 # ----------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 2.6)
-set(PROJECT_NAME ipset)
+set(PROJECT_NAME libcorkipset)
 set(RELEASE_DATE 2013-12-11)
 project(${PROJECT_NAME})
 enable_testing()

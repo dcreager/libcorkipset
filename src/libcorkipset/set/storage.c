@@ -1,6 +1,6 @@
 /* -*- coding: utf-8 -*-
  * ----------------------------------------------------------------------
- * Copyright © 2009, libcorkipset authors
+ * Copyright © 2010, libcorkipset authors
  * All rights reserved.
  *
  * Please see the COPYING file in this distribution for license details.
@@ -14,9 +14,9 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
-#include "ipset/errors.h"
-#include "ipset/ipset.h"
+#include "libcork/ipset.h"
+#include "libcork/ipset/nodes.h"
+#include "libcork/ipset/errors.h"
 
 
 static void
@@ -61,40 +61,46 @@ file_consumer_eof(struct cork_stream_consumer *vself)
     return 0;
 }
 
-
 int
-ipmap_save_to_stream(struct cork_stream_consumer *stream,
-                     const struct ip_map *map)
+ipset_save_to_stream(struct cork_stream_consumer *stream,
+                     const struct ip_set *set)
 {
-    return ipset_node_cache_save(stream, map->cache, map->map_bdd);
+    return ipset_node_cache_save(stream, set->cache, set->set_bdd);
 }
 
 int
-ipmap_save(FILE *fp, const struct ip_map *map)
+ipset_save(FILE *fp, const struct ip_set *set)
 {
     struct file_consumer  stream = {
         { file_consumer_data, file_consumer_eof, NULL }, fp
     };
-    return ipmap_save_to_stream(&stream.parent, map);
+    return ipset_save_to_stream(&stream.parent, set);
 }
 
 
-struct ip_map *
-ipmap_load(FILE *stream)
+int
+ipset_save_dot(FILE *fp, const struct ip_set *set)
 {
-    struct ip_map  *map;
+    struct file_consumer  stream = {
+        { file_consumer_data, file_consumer_eof, NULL }, fp
+    };
+    return ipset_node_cache_save_dot(&stream.parent, set->cache, set->set_bdd);
+}
+
+
+struct ip_set *
+ipset_load(FILE *stream)
+{
+    struct ip_set  *set;
     ipset_node_id  new_bdd;
 
-    /* It doesn't matter what default value we use here, because we're
-     * going to replace it with the default BDD we load in from the
-     * file. */
-    map = ipmap_new(0);
-    new_bdd = ipset_node_cache_load(stream, map->cache);
+    set = ipset_new();
+    new_bdd = ipset_node_cache_load(stream, set->cache);
     if (cork_error_occurred()) {
-        ipmap_free(map);
+        ipset_free(set);
         return NULL;
     }
 
-    map->map_bdd = new_bdd;
-    return map;
+    set->set_bdd = new_bdd;
+    return set;
 }

@@ -9,7 +9,7 @@
 
 #include <libcork/core.h>
 
-#include "ipset/bdd/nodes.h"
+#include "libcork/ipset/nodes.h"
 
 
 struct ipset_assignment *
