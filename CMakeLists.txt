@@ -57,6 +57,10 @@ if(GIT_SHA1_RESULT)
 endif(GIT_SHA1_RESULT)
 message(STATUS "Current revision: " ${GIT_SHA1})
 
+find_package(Threads)
+set(THREADS_LDFLAGS "${CMAKE_THREAD_LIBS_INIT}")
+set(THREADS_STATIC_LDFLAGS "${CMAKE_THREAD_LIBS_INIT}")
+
 #-----------------------------------------------------------------------
 # Set some options
 
